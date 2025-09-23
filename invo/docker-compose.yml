@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  database:
+    build: 
+      context: ./database
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_DB: gst_service_center
+      POSTGRES_USER: gst_user
+      POSTGRES_PASSWORD: gst_password_2023
+      POSTGRES_TIMEZONE: Asia/Kolkata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/backups:/backups
+    networks:
+      - gst_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gst_user -d gst_service_center"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://gst_user:gst_password_2023@database:5432/gst_service_center
+      SECRET_KEY: your-secret-key-change-in-production
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: http://localhost:3000,http://localhost:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - gst_network
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Redis for caching and session management (for offline sync)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gst_network
+    command: redis-server --appendonly yes
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - gst_network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+
+networks:
+  gst_network:
+    driver: bridge

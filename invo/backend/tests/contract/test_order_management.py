@@ -1,0 +1,257 @@
+"""
+Contract tests for order management endpoints.
+Tests POST /orders endpoint according to API specification.
+"""
+
+import pytest
+from httpx import AsyncClient
+from fastapi import status
+
+
+class TestOrderCreate:
+    """Contract tests for POST /orders endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_create_order_success(self, async_client: AsyncClient, auth_headers: dict):
+        """Test successful order creation."""
+        order_data = {
+            "customer_id": 1,
+            "order_type": "sale",
+            "items": [
+                {
+                    "inventory_item_id": 1,
+                    "quantity": 2,
+                    "unit_price": 1500.00,
+                    "discount_percentage": 5.0
+                },
+                {
+                    "inventory_item_id": 2,
+                    "quantity": 1,
+                    "unit_price": 2500.00,
+                    "discount_percentage": 0.0
+                }
+            ],
+            "gst_treatment": "taxable",
+            "place_of_supply": "Maharashtra",
+            "payment_terms": "net_30",
+            "notes": "Urgent delivery required"
+        }
+
+        response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
+
+        # Verify response status
+        assert response.status_code == status.HTTP_201_CREATED
+
+        # Verify response structure
+        response_data = response.json()
+        assert response_data["status"] == "success"
+        assert "data" in response_data
+
+        # Verify created order data
+        order = response_data["data"]["order"]
+        assert order["customer_id"] == order_data["customer_id"]
+        assert order["order_type"] == order_data["order_type"]
+        assert "id" in order
+        assert "order_number" in order
+        assert "created_at" in order
+        assert "status" in order
+
+        # Verify order calculations
+        assert "subtotal" in order
+        assert "gst_amount" in order
+        assert "total_amount" in order
+        assert order["total_amount"] > 0
+
+        # Verify items structure
+        assert "items" in order
+        assert len(order["items"]) == 2
+
+        for item in order["items"]:
+            assert "id" in item
+            assert "quantity" in item
+            assert "unit_price" in item
+            assert "line_total" in item
+            assert "gst_rate" in item
+            assert "gst_amount" in item
+
+    @pytest.mark.asyncio
+    async def test_create_order_missing_items(self, async_client: AsyncClient, auth_headers: dict):
+        """Test order creation without items."""
+        order_data = {
+            "customer_id": 1,
+            "order_type": "sale",
+            "items": []  # Empty items array
+        }
+
+        response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
+
+        # Should return validation error
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        # Verify error response structure
+        response_data = response.json()
+        assert response_data["status"] == "error"
+        assert response_data["error"]["code"] == "VALIDATION_ERROR"
+        assert "items" in response_data["error"]["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_create_order_invalid_customer(self, async_client: AsyncClient, auth_headers: dict):
+        """Test order creation with non-existent customer."""
+        order_data = {
+            "customer_id": 99999,  # Non-existent customer
+            "order_type": "sale",
+            "items": [
+                {
+                    "inventory_item_id": 1,
+                    "quantity": 1,
+                    "unit_price": 1000.00
+                }
+            ]
+        }
+
+        response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
+
+        # Should return not found error
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        # Verify error response
+        response_data = response.json()
+        assert response_data["status"] == "error"
+        assert response_data["error"]["code"] == "CUSTOMER_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_create_order_insufficient_inventory(self, async_client: AsyncClient, auth_headers: dict):
+        """Test order creation with insufficient inventory."""
+        order_data = {
+            "customer_id": 1,
+            "order_type": "sale",
+            "items": [
+                {
+                    "inventory_item_id": 1,
+                    "quantity": 1000,  # Exceeds available stock
+                    "unit_price": 1500.00
+                }
+            ]
+        }
+
+        response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
+
+        # Should return business rule violation
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        # Verify error response
+        response_data = response.json()
+        assert response_data["status"] == "error"
+        assert response_data["error"]["code"] == "INSUFFICIENT_INVENTORY"
+
+    @pytest.mark.asyncio
+    async def test_create_order_response_time_constitutional_requirement(self, async_client: AsyncClient, auth_headers: dict):
+        """Test that order creation response time meets constitutional requirement (<200ms)."""
+        import time
+
+        order_data = {
+            "customer_id": 1,
+            "order_type": "sale",
+            "items": [
+                {
+                    "inventory_item_id": 1,
+                    "quantity": 1,
+                    "unit_price": 1500.00
+                }
+            ]
+        }
+
+        start_time = time.time()
+        response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
+        end_time = time.time()
+
+        # Calculate response time in milliseconds
+        response_time_ms = (end_time - start_time) * 1000
+
+        # Verify constitutional requirement: API responses <200ms
+        assert response_time_ms < 200, f"Order creation response time {response_time_ms:.1f}ms exceeds constitutional requirement of 200ms"
+
+
+class TestOrderList:
+    """Contract tests for GET /orders endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_list_orders_success(self, async_client: AsyncClient, auth_headers: dict):
+        """Test successful retrieval of orders list."""
+        response = await async_client.get("/api/v1/orders", headers=auth_headers)
+
+        # Verify response status
+        assert response.status_code == status.HTTP_200_OK
+
+        # Verify response structure
+        response_data = response.json()
+        assert response_data["status"] == "success"
+        assert "data" in response_data
+
+        data = response_data["data"]
+        assert "orders" in data
+        assert "pagination" in data
+
+        # Verify pagination structure
+        pagination = data["pagination"]
+        assert "page" in pagination
+        assert "page_size" in pagination
+        assert "total_items" in pagination
+        assert "total_pages" in pagination
+
+    @pytest.mark.asyncio
+    async def test_list_orders_with_status_filter(self, async_client: AsyncClient, auth_headers: dict):
+        """Test orders list with status filter."""
+        params = {"status": "pending"}
+        response = await async_client.get("/api/v1/orders", params=params, headers=auth_headers)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+
+        # If orders exist, verify they match the status filter
+        for order in data["orders"]:
+            assert order["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_list_orders_by_date_range(self, async_client: AsyncClient, auth_headers: dict):
+        """Test orders list with date range filter."""
+        params = {
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31"
+        }
+        response = await async_client.get("/api/v1/orders", params=params, headers=auth_headers)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+
+        # Response should be valid
+        assert "orders" in data
+        assert "pagination" in data
+
+    @pytest.mark.asyncio
+    async def test_list_orders_unauthorized(self, async_client: AsyncClient):
+        """Test orders list without authentication."""
+        response = await async_client.get("/api/v1/orders")
+
+        # Should return unauthorized
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+        # Verify error response structure
+        response_data = response.json()
+        assert response_data["status"] == "error"
+        assert response_data["error"]["code"] == "UNAUTHORIZED"
+
+
+# Fixtures would be defined in conftest.py - included here for TDD failure
+@pytest.fixture
+async def async_client():
+    """Create async test client for FastAPI application."""
+    raise NotImplementedError(
+        "FastAPI app not yet implemented - TDD test should fail")
+
+
+@pytest.fixture
+def auth_headers():
+    """Authentication headers with JWT token."""
+    raise NotImplementedError(
+        "Auth system not yet implemented - TDD test should fail")
