@@ -1,4 +1,5 @@
 # Research & Technology Decisions
+
 ## Feature: GST Compliant Service Center Management System
 
 This document consolidates research findings and technology decisions for the GST billing application.
@@ -8,7 +9,8 @@ This document consolidates research findings and technology decisions for the GS
 ### Backend Framework Selection
 
 **Decision**: FastAPI for REST API development  
-**Rationale**: 
+**Rationale**:
+
 - Automatic OpenAPI documentation generation (constitutional requirement for observability)
 - Built-in request/response validation with Pydantic
 - High performance - async support for concurrent requests
@@ -16,6 +18,7 @@ This document consolidates research findings and technology decisions for the GS
 - Rich ecosystem for testing with pytest integration
 
 **Alternatives considered**:
+
 - Django REST Framework: Too heavyweight for API-only service
 - Flask: Less built-in functionality, requires more manual setup
 - Django: Full MVC framework unnecessary for containerized API
@@ -24,6 +27,7 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: PostgreSQL with SQLAlchemy ORM  
 **Rationale**:
+
 - ACID compliance essential for financial data (GST calculations, billing)
 - Strong JSON support for flexible configuration data
 - Excellent container support for deployment strategy
@@ -31,6 +35,7 @@ This document consolidates research findings and technology decisions for the GS
 - Rich ecosystem for testing and performance monitoring
 
 **Alternatives considered**:
+
 - MySQL: Less robust JSON support
 - SQLite: Not suitable for multi-container deployment
 - MongoDB: ACID transactions less mature, financial data requires consistency
@@ -39,6 +44,7 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Docker containers with Azure Kubernetes Service (AKS)  
 **Rationale**:
+
 - Separation of concerns: backend API + database containers
 - Scalability for 10K-50K transactions/month growth
 - Azure integration for backup and monitoring requirements
@@ -46,6 +52,7 @@ This document consolidates research findings and technology decisions for the GS
 - Offline operation capability with local container orchestration
 
 **Alternatives considered**:
+
 - Azure App Service: Less control over container configuration
 - Virtual Machines: Higher maintenance overhead
 - Azure Container Instances: Limited orchestration capabilities
@@ -56,12 +63,14 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Implement configurable GST calculation engine  
 **Rationale**:
+
 - GST rates vary by product category (5%, 12%, 18%, 28%)
 - HSN code classification required for parts and services
 - CGST/SGST split for intra-state, IGST for inter-state transactions
 - Feature flag system allows per-user GST preferences
 
 **Key Implementation Points**:
+
 - HSN code database for pumps, motors, spare parts
 - Tax calculation service with state-specific logic
 - GST invoice format compliance for statutory requirements
@@ -71,12 +80,14 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Local SQLite cache with PostgreSQL sync  
 **Rationale**:
+
 - 24+ hour offline requirement for service center operations
 - Local cache maintains critical data during connectivity issues
 - Sync mechanism for data consistency when online
 - Constitutional performance requirement (<200ms) maintained offline
 
 **Implementation Approach**:
+
 - Background sync service for data replication
 - Conflict resolution strategy for concurrent modifications
 - Local backup of essential GST and inventory data
@@ -87,12 +98,14 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: pytest with coverage.py and contract testing  
 **Rationale**:
+
 - Constitutional requirement: 80% line coverage, 90% critical path
 - Contract tests ensure API consistency for integrations
 - Integration tests for GST calculation workflows
 - Unit tests for business logic validation
 
 **Testing Categories**:
+
 - Unit: Individual component testing (models, services)
 - Integration: End-to-end workflow testing (billing, inventory)
 - Contract: API specification compliance testing
@@ -102,6 +115,7 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Pre-commit hooks with black, isort, flake8, mypy  
 **Rationale**:
+
 - Constitutional code quality requirements
 - Type checking with mypy for better maintainability
 - Consistent formatting across development team
@@ -113,12 +127,14 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: OpenTelemetry with Azure Monitor integration  
 **Rationale**:
+
 - Constitutional observability requirements
 - Distributed tracing for multi-container architecture
 - Custom metrics for GST transaction monitoring
 - Performance tracking for <200ms API response requirement
 
 **Monitoring Points**:
+
 - API response times and error rates
 - Database query performance
 - Container resource utilization
@@ -128,6 +144,7 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Automated Azure Blob Storage backup with point-in-time recovery  
 **Rationale**:
+
 - 1-year retention requirement for GST compliance
 - Cloud backup meets constitutional observability requirements
 - Point-in-time recovery for financial data integrity
@@ -139,6 +156,7 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Encryption at rest and in transit with Azure Key Vault  
 **Rationale**:
+
 - Financial data requires strong security
 - Azure Key Vault for secret management
 - TLS encryption for API communications
@@ -148,6 +166,7 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: JWT-based authentication with role-based access control  
 **Rationale**:
+
 - Stateless authentication suitable for containerized deployment
 - Role-based access for different user types (admin, operator, viewer)
 - Integration capability with Azure Active Directory if needed
@@ -158,12 +177,14 @@ This document consolidates research findings and technology decisions for the GS
 
 **Decision**: Docker Compose for local development environment  
 **Rationale**:
+
 - Consistent development environment across team
 - Mirrors production container architecture
 - Easy setup for new developers
 - Integration with testing workflows
 
 **Development Stack**:
+
 - Python 3.11+ with virtual environment
 - PostgreSQL container for local testing
 - Hot reload for development efficiency
@@ -172,6 +193,7 @@ This document consolidates research findings and technology decisions for the GS
 ## Next Steps
 
 All technology decisions align with constitutional requirements:
+
 - ✅ Code Quality: Type hints, automated formatting, quality gates
 - ✅ Testing: 80%+ coverage strategy with comprehensive test types
 - ✅ Performance: <200ms API targets with monitoring

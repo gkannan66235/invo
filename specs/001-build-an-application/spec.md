@@ -8,18 +8,21 @@
 ## Clarifications
 
 ### Session 2025-09-23
+
 - Q: How should GST functionality be controlled in the system? → A: User preference - Individual operators can toggle GST features
 - Q: How long should the system support offline operation during network outages? → A: Full day (24+ hours) with complete standalone operation
 - Q: What are the backup storage and data retention requirements? → A: Cloud storage, 1 year retention for compliance
 - Q: What barcode scanning capabilities should the system support? → A: Optional feature - manual entry only
 - Q: What are the expected growth projections for system scalability? → A: Medium growth - 10,000 to 50,000 transactions/month
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### Primary User Story
+
 A service center operator needs to manage inventory of pumps, motors, and spare parts, process customer orders, generate GST-compliant invoices, and track stock levels in real-time. The system must handle the complete workflow from inventory management to customer billing while ensuring 100% GST compliance for Indian retail operations.
 
 ### Acceptance Scenarios
+
 1. **Given** an empty inventory, **When** the operator adds new pump stock with GST details, **Then** the system records the item with proper tax classification and current stock levels
 2. **Given** available spare parts inventory, **When** a customer requests service with parts replacement, **Then** the system creates a service order, deducts inventory, and generates a GST-compliant invoice
 3. **Given** a completed service transaction, **When** the operator finalizes the billing, **Then** the system generates proper GST invoices with all required fields per Indian tax regulations
@@ -27,13 +30,14 @@ A service center operator needs to manage inventory of pumps, motors, and spare 
 5. **Given** monthly operations, **When** tax filing period approaches, **Then** the system generates GST return reports in required formats
 
 ### Edge Cases
+
 - What happens when GST rates change for existing inventory items?
 - How does the system handle partial deliveries and split billing?
 - What occurs when network connectivity is lost during transaction processing?
 - How are damaged/returned items handled in inventory and GST calculations?
 - What happens when customer disputes charges after invoice generation?
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -56,7 +60,7 @@ A service center operator needs to manage inventory of pumps, motors, and spare 
 - **FR-017**: System MUST support offline operation for 24+ hours with complete standalone functionality and automatic sync when reconnected
 - **FR-018**: Users MUST be able to search inventory by part number, description, or category
 
-### Key Entities *(include if feature involves data)*
+### Key Entities _(include if feature involves data)_
 
 - **Inventory Item**: Product code, description, HSN code, GST rate, current stock, minimum stock level, purchase price, selling price, supplier information
 - **Customer**: Name, contact details, GSTIN (for B2B), address, payment terms, transaction history
@@ -67,7 +71,7 @@ A service center operator needs to manage inventory of pumps, motors, and spare 
 - **User Account**: Operator credentials, access permissions, GST preference setting, activity logs
 - **Stock Movement**: Transaction type (purchase/sale/adjustment), quantity, date, reference document, running balance
 
-### Non-Functional Requirements *(mandatory)*
+### Non-Functional Requirements _(mandatory)_
 
 - **NFR-001**: Performance - API responses MUST complete within 200ms for 95th percentile
 - **NFR-002**: Performance - UI interactions MUST provide feedback within 100ms
@@ -84,22 +88,26 @@ A service center operator needs to manage inventory of pumps, motors, and spare 
 - **NFR-013**: Recovery - System MUST recover from failures within 4 hours with maximum 1 hour acceptable data loss
 
 ## Review & Acceptance Checklist
-*GATE: Automated checks run during main() execution*
+
+_GATE: Automated checks run during main() execution_
 
 ### Content Quality
+
 - [x] No implementation details (languages, frameworks, APIs)
 - [x] Focused on user value and business needs
 - [x] Written for non-technical stakeholders
 - [x] All mandatory sections completed
 
 ### Requirement Completeness
+
 - [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous  
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
 
 ### Constitutional Compliance
+
 - [x] Performance benchmarks specified (200ms API, 100ms UI)
 - [x] Test coverage requirements included (80% line, 90% critical path)
 - [x] User experience consistency addressed
@@ -109,7 +117,8 @@ A service center operator needs to manage inventory of pumps, motors, and spare 
 ---
 
 ## Execution Status
-*Updated by main() during processing*
+
+_Updated by main() during processing_
 
 - [x] User description parsed
 - [x] Key concepts extracted

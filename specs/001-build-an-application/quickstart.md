@@ -1,4 +1,5 @@
 # Quickstart Guide
+
 ## GST Compliant Service Center Management System
 
 This guide provides test scenarios and validation steps to verify system functionality and constitutional compliance.
@@ -6,6 +7,7 @@ This guide provides test scenarios and validation steps to verify system functio
 ## Prerequisites
 
 Before running test scenarios, ensure:
+
 - System is deployed and accessible
 - Database is initialized with schema
 - Authentication is configured
@@ -18,7 +20,9 @@ Before running test scenarios, ensure:
 **Objective**: Verify secure user authentication and role-based access
 
 **Test Steps**:
+
 1. **Login with valid credentials**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/auth/login \
      -H "Content-Type: application/json" \
@@ -27,23 +31,25 @@ Before running test scenarios, ensure:
        "password": "secure_password"
      }'
    ```
-   
+
    **Expected**: HTTP 200, JWT token returned, user profile included
 
 2. **Access protected endpoint with token**
+
    ```bash
    curl -X GET http://localhost:8000/api/v1/inventory/items \
      -H "Authorization: Bearer {jwt_token}"
    ```
-   
+
    **Expected**: HTTP 200, inventory data returned
 
 3. **Access with invalid token**
+
    ```bash
    curl -X GET http://localhost:8000/api/v1/inventory/items \
      -H "Authorization: Bearer invalid_token"
    ```
-   
+
    **Expected**: HTTP 401, error response
 
 **Performance Target**: Login <200ms, API access <200ms  
@@ -54,7 +60,9 @@ Before running test scenarios, ensure:
 **Objective**: Test complete inventory lifecycle with stock tracking
 
 **Test Steps**:
+
 1. **Create new inventory item**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/inventory/items \
      -H "Authorization: Bearer {jwt_token}" \
@@ -71,10 +79,11 @@ Before running test scenarios, ensure:
        "category": "pump"
      }'
    ```
-   
+
    **Expected**: HTTP 201, item created with UUID
 
 2. **Add initial stock**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/inventory/items/{item_id}/stock-adjustment \
      -H "Authorization: Bearer {jwt_token}" \
@@ -85,15 +94,16 @@ Before running test scenarios, ensure:
        "movement_type": "adjustment"
      }'
    ```
-   
+
    **Expected**: Stock movement recorded, balance updated
 
 3. **Verify stock levels**
+
    ```bash
    curl -X GET http://localhost:8000/api/v1/inventory/items/{item_id} \
      -H "Authorization: Bearer {jwt_token}"
    ```
-   
+
    **Expected**: Current stock = 10, recent movements visible
 
 **Data Integrity Check**: Stock movements must maintain accurate running balance  
@@ -104,7 +114,9 @@ Before running test scenarios, ensure:
 **Objective**: Verify end-to-end billing workflow with GST calculations
 
 **Test Steps**:
+
 1. **Create customer (B2B with GSTIN)**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/customers \
      -H "Authorization: Bearer {jwt_token}" \
@@ -125,6 +137,7 @@ Before running test scenarios, ensure:
    ```
 
 2. **Create service order with parts**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/service-orders \
      -H "Authorization: Bearer {jwt_token}" \
@@ -145,15 +158,16 @@ Before running test scenarios, ensure:
        "notes": "Customer site installation"
      }'
    ```
-   
+
    **Expected**: Order created, stock reduced, totals calculated
 
 3. **Generate GST-compliant invoice**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/service-orders/{order_id}/generate-invoice \
      -H "Authorization: Bearer {jwt_token}"
    ```
-   
+
    **Expected**: Invoice with correct CGST/SGST split (9% each for Delhi)
 
 4. **Verify GST calculations**
@@ -172,7 +186,9 @@ Before running test scenarios, ensure:
 **Objective**: Verify IGST calculation for inter-state sales
 
 **Test Steps**:
+
 1. **Create customer in different state**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/customers \
      -H "Authorization: Bearer {jwt_token}" \
@@ -190,6 +206,7 @@ Before running test scenarios, ensure:
    ```
 
 2. **Create invoice for inter-state sale**
+
    ```bash
    curl -X POST http://localhost:8000/api/v1/invoices \
      -H "Authorization: Bearer {jwt_token}" \
@@ -221,31 +238,35 @@ Before running test scenarios, ensure:
 **Objective**: Verify system meets performance requirements
 
 **Test Steps**:
+
 1. **API Response Time Test**
+
    ```bash
    # Use Apache Bench for load testing
    ab -n 100 -c 10 -H "Authorization: Bearer {jwt_token}" \
      http://localhost:8000/api/v1/inventory/items
    ```
-   
+
    **Expected**: 95th percentile < 200ms
 
 2. **Database Query Performance**
+
    ```bash
    curl -X GET "http://localhost:8000/api/v1/invoices?date_from=2024-01-01&date_to=2024-12-31" \
      -H "Authorization: Bearer {jwt_token}" \
      -w "Time: %{time_total}s\n"
    ```
-   
+
    **Expected**: Response time < 200ms even with large date ranges
 
 3. **Concurrent User Simulation**
+
    ```bash
    # Simulate 50 concurrent users for 5 minutes
    ab -n 1000 -c 50 -t 300 -H "Authorization: Bearer {jwt_token}" \
      http://localhost:8000/api/v1/health
    ```
-   
+
    **Expected**: No failures, stable response times
 
 **Constitutional Check**: ✅ Performance requirements met
@@ -255,16 +276,20 @@ Before running test scenarios, ensure:
 **Objective**: Test offline capability and data synchronization
 
 **Test Steps**:
+
 1. **Create transactions while online**
+
    - Create service orders
    - Record stock movements
    - Generate invoices
 
 2. **Simulate network disconnection**
+
    - Block external network access
    - Continue creating local transactions
 
 3. **Verify offline operation**
+
    - Local database operations continue
    - Data cached locally
    - UI feedback remains responsive (<100ms)
@@ -279,11 +304,13 @@ Before running test scenarios, ensure:
 ## Health Check and Monitoring Validation
 
 ### System Health
+
 ```bash
 curl -X GET http://localhost:8000/api/v1/health
 ```
 
 **Expected Response**:
+
 ```json
 {
   "status": "success",
@@ -297,11 +324,13 @@ curl -X GET http://localhost:8000/api/v1/health
 ```
 
 ### Metrics Collection
+
 ```bash
 curl -X GET http://localhost:8000/metrics
 ```
 
 **Expected**: Prometheus metrics format with:
+
 - Request count and duration
 - Database connection pool stats
 - Error rates by endpoint
@@ -310,6 +339,7 @@ curl -X GET http://localhost:8000/metrics
 ## Error Handling Validation
 
 ### Validation Errors
+
 ```bash
 # Test invalid input
 curl -X POST http://localhost:8000/api/v1/inventory/items \
@@ -324,6 +354,7 @@ curl -X POST http://localhost:8000/api/v1/inventory/items \
 **Expected**: HTTP 400 with clear error messages
 
 ### Business Logic Errors
+
 ```bash
 # Test insufficient stock
 curl -X POST http://localhost:8000/api/v1/service-orders \
@@ -343,6 +374,7 @@ curl -X POST http://localhost:8000/api/v1/service-orders \
 ## Automated Test Execution
 
 ### Unit Tests
+
 ```bash
 # Run all unit tests with coverage
 pytest tests/unit/ --cov=src --cov-report=html --cov-fail-under=80
@@ -351,6 +383,7 @@ pytest tests/unit/ --cov=src --cov-report=html --cov-fail-under=80
 **Constitutional Requirement**: 80% line coverage minimum
 
 ### Integration Tests
+
 ```bash
 # Run end-to-end workflow tests
 pytest tests/integration/ --verbose
@@ -359,6 +392,7 @@ pytest tests/integration/ --verbose
 **Constitutional Requirement**: 90% critical path coverage
 
 ### Contract Tests
+
 ```bash
 # Validate API contracts
 pytest tests/contract/ --api-spec=contracts/api-specification.md
@@ -369,12 +403,14 @@ pytest tests/contract/ --api-spec=contracts/api-specification.md
 ## Security Testing
 
 ### Authentication Tests
+
 - Invalid credentials rejection
 - Token expiration handling
 - Role-based access control
 - Password security requirements
 
 ### Data Protection Tests
+
 - Sensitive data encryption
 - SQL injection prevention
 - Input validation
@@ -383,12 +419,14 @@ pytest tests/contract/ --api-spec=contracts/api-specification.md
 ## Compliance Validation
 
 ### GST Compliance
+
 - Tax calculation accuracy
 - Invoice format compliance
 - HSN code validation
 - Audit trail completeness
 
 ### Data Retention
+
 - 6-year GST data retention
 - Backup verification
 - Recovery testing
@@ -396,13 +434,13 @@ pytest tests/contract/ --api-spec=contracts/api-specification.md
 
 ## Performance Benchmarks
 
-| Metric | Target | Test Method |
-|--------|--------|-------------|
-| API Response Time (p95) | <200ms | Load testing |
-| UI Feedback | <100ms | Manual testing |
-| Database Queries | <100ms | Query analysis |
-| Concurrent Users | 50+ | Stress testing |
-| Monthly Transactions | 10K-50K | Volume testing |
+| Metric                  | Target  | Test Method    |
+| ----------------------- | ------- | -------------- |
+| API Response Time (p95) | <200ms  | Load testing   |
+| UI Feedback             | <100ms  | Manual testing |
+| Database Queries        | <100ms  | Query analysis |
+| Concurrent Users        | 50+     | Stress testing |
+| Monthly Transactions    | 10K-50K | Volume testing |
 
 ## Constitutional Compliance Checklist
 

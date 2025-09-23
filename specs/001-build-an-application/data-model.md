@@ -1,4 +1,5 @@
 # Data Model Design
+
 ## Feature: GST Compliant Service Center Management System
 
 This document defines the data entities, relationships, and validation rules for the service center management system.
@@ -10,6 +11,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: Central catalog of all products and parts managed by the service center
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `product_code`: String (Unique, indexed) - Internal product identifier
 - `description`: String (Required) - Human-readable product description
@@ -26,12 +28,14 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - GST rate must be valid Indian GST rate (0, 5, 12, 18, 28)
 - Purchase price must be positive
 - Selling price must be >= purchase price
 - HSN code must follow Indian GST format
 
 **Relationships**:
+
 - Many-to-One: Supplier
 - One-to-Many: Stock Movements
 - Many-to-Many: Service Orders (through line items)
@@ -41,6 +45,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: Customer information for billing and service tracking
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `name`: String (Required) - Customer name
 - `contact_phone`: String (Required) - Primary contact number
@@ -59,12 +64,14 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - Phone number must be valid Indian format
 - GSTIN must be valid format if provided (15 characters)
 - State must be valid Indian state for tax calculation
 - Credit limit must be non-negative
 
 **Relationships**:
+
 - One-to-Many: Service Orders
 - One-to-Many: Invoices
 
@@ -73,6 +80,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: Work orders for services and parts installation
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `order_number`: String (Unique, auto-generated) - Human-readable order reference
 - `customer_id`: UUID (Foreign Key, Required) - Associated customer
@@ -92,12 +100,14 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - Service date cannot be in the past (except for updates)
 - Labor charges must be non-negative
 - Discount percentage must be between 0-100
 - Status transitions must follow business rules
 
 **Relationships**:
+
 - Many-to-One: Customer
 - Many-to-One: User (creator)
 - One-to-Many: Service Order Line Items
@@ -108,6 +118,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: Individual parts/items used in a service order
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `service_order_id`: UUID (Foreign Key, Required)
 - `inventory_item_id`: UUID (Foreign Key, Required)
@@ -119,11 +130,13 @@ This document defines the data entities, relationships, and validation rules for
 - `created_at`: Timestamp
 
 **Validation Rules**:
+
 - Quantity must be positive
 - Unit price must be positive
 - Available stock must be sufficient for quantity
 
 **Relationships**:
+
 - Many-to-One: Service Order
 - Many-to-One: Inventory Item
 
@@ -132,6 +145,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: GST-compliant billing documents
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `invoice_number`: String (Unique, sequential) - Legal invoice number
 - `invoice_date`: Date (Required) - Invoice generation date
@@ -158,12 +172,14 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - Invoice number must be sequential and unique
 - Payment date cannot be before invoice date
 - Tax amounts must be correctly calculated based on location
 - Cannot be modified after being paid (except cancellation)
 
 **Relationships**:
+
 - Many-to-One: Customer
 - Many-to-One: Service Order (optional)
 - Many-to-One: User (creator)
@@ -174,6 +190,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: Vendor management for inventory purchases
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `name`: String (Required) - Supplier company name
 - `contact_person`: String (Optional) - Primary contact name
@@ -190,11 +207,13 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - GSTIN must be valid format if provided
 - Phone number must be valid
 - Payment terms must be positive
 
 **Relationships**:
+
 - One-to-Many: Inventory Items
 - One-to-Many: Stock Movements (purchases)
 
@@ -203,6 +222,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: Audit trail for all inventory changes
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `inventory_item_id`: UUID (Foreign Key, Required)
 - `movement_type`: Enum (purchase, sale, adjustment, return) - Transaction type
@@ -217,11 +237,13 @@ This document defines the data entities, relationships, and validation rules for
 - `created_at`: Timestamp
 
 **Validation Rules**:
+
 - Running balance cannot be negative
 - Movement date cannot be in the future
 - Quantity cannot be zero
 
 **Relationships**:
+
 - Many-to-One: Inventory Item
 - Many-to-One: User (creator)
 
@@ -230,6 +252,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: GST rate management and tax calculation rules
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `hsn_code`: String (Required, Unique) - HSN code
 - `description`: String (Required) - Product category description
@@ -241,6 +264,7 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - GST rate must be valid (0, 5, 12, 18, 28)
 - Effective dates must be logical
 - HSN code must be valid format
@@ -250,6 +274,7 @@ This document defines the data entities, relationships, and validation rules for
 **Purpose**: System user management and access control
 
 **Fields**:
+
 - `id`: UUID (Primary Key)
 - `username`: String (Unique, Required) - Login username
 - `email`: String (Unique, Required) - Email address
@@ -263,11 +288,13 @@ This document defines the data entities, relationships, and validation rules for
 - `updated_at`: Timestamp
 
 **Validation Rules**:
+
 - Username must be alphanumeric
 - Email must be valid format
 - Password must meet security requirements
 
 **Relationships**:
+
 - One-to-Many: Service Orders (created)
 - One-to-Many: Invoices (created)
 - One-to-Many: Stock Movements (created)
@@ -298,12 +325,14 @@ TaxConfiguration ||--o{ InventoryItem : defines_rates
 ## Performance Considerations
 
 1. **Indexing Strategy**:
+
    - Primary keys (UUID) - B-tree indexes
    - Foreign keys - B-tree indexes
    - Search fields (product_code, invoice_number) - Unique indexes
    - Date ranges (invoice_date, service_date) - B-tree indexes
 
 2. **Query Optimization**:
+
    - Inventory queries by category and active status
    - Customer search by name and phone
    - Invoice queries by date range and status
