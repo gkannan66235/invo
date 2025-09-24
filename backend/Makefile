@@ -31,6 +31,10 @@ test:
 	# Enforce 90% coverage on invoices router (T004)
 	coverage report --fail-under=90 $(SRC_DIR)/routers/invoices.py
 
+## test-fast: Run tests in fast mode (skips OTEL setup, seeds, real auth hash) - set FAST_TESTS=1
+test-fast:
+	FAST_TESTS=1 pytest tests/unit -q -k "" --no-cov --disable-warnings
+
 ## test-postgres: Run tests against Postgres (requires TEST_DB_URL env var)
 test-postgres:
 	@if [ -z "$$TEST_DB_URL" ]; then echo "TEST_DB_URL not set (e.g., export TEST_DB_URL=postgresql+asyncpg://user:pass@localhost:5432/invo_test)"; exit 1; fi

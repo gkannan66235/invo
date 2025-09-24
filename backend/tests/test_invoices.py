@@ -14,7 +14,8 @@ async def test_create_invoice_minimal(auth_client: AsyncClient):
     }
     resp = await auth_client.post("/api/v1/invoices/", json=payload)
     assert resp.status_code == 201, resp.text
-    data = resp.json()
+    raw = resp.json()
+    data = raw.get("data", raw) if isinstance(raw, dict) else raw
     assert data["amount"] == 1000
     assert data["gst_rate"] == 18
     assert data["gst_amount"] == 180
@@ -35,20 +36,23 @@ async def test_partial_payment_and_full_payment(auth_client: AsyncClient):
     }
     create_resp = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert create_resp.status_code == 201, create_resp.text
-    invoice = create_resp.json()
+    _raw = create_resp.json()
+    invoice = _raw.get("data", _raw)
     invoice_id = invoice["id"]
 
     # Partial payment
     patch_resp = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"paid_amount": 500})
     assert patch_resp.status_code == 200, patch_resp.text
-    updated = patch_resp.json()
+    _praw = patch_resp.json()
+    updated = _praw.get("data", _praw)
     assert updated["payment_status"].lower() == "partial"
 
     # Full payment
     total_amount = updated["total_amount"]
     patch_resp2 = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"paid_amount": total_amount})
     assert patch_resp2.status_code == 200, patch_resp2.text
-    updated2 = patch_resp2.json()
+    _praw2 = patch_resp2.json()
+    updated2 = _praw2.get("data", _praw2)
     assert updated2["payment_status"].lower() == "paid"
 
 
@@ -64,7 +68,8 @@ async def test_overpay_rejected(auth_client: AsyncClient):
     }
     resp = await auth_client.post("/api/v1/invoices/", json=payload)
     assert resp.status_code == 201, resp.text
-    invoice_id = resp.json()["id"]
+    _raw2 = resp.json()
+    invoice_id = (_raw2.get("data", _raw2))["id"]
 
     bad = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"paid_amount": 10000})
     assert bad.status_code == 400

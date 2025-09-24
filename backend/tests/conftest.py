@@ -257,19 +257,31 @@ async def _ensure_admin(session: AsyncSession):
 @pytest_asyncio.fixture
 async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa: PT019 F811
     """Async client with valid JWT auth header for admin user."""
+    import os as _os
+    # Fast path: construct a faux token when FAST_TESTS enabled to avoid auth route + bcrypt cost
+    if _os.getenv("FAST_TESTS") == "1":
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            # Minimal payload expected by downstream dependency (simulate created user id=1)
+            fake_token = "test.fast.token"
+            client.headers.update({
+                "Authorization": f"Bearer {fake_token}",
+                "Content-Type": "application/json"
+            })
+            yield client
+            return
     await _ensure_admin(db_session)
-    # context manager for test client
     async with AsyncClient(app=app, base_url="http://test") as client:
         resp = await client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "admin123"})
         assert resp.status_code == 200, resp.text
         body = resp.json()
-        # Support both legacy flat response and new envelope during transition
         if "data" in body and isinstance(body.get("data"), dict):
             token = body["data"].get("access_token")
         else:
             token = body.get("access_token")
-        client.headers.update(
-            {"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        client.headers.update({
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        })
         yield client
 
 

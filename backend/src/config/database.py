@@ -43,6 +43,9 @@ class DatabaseConfig:
                 if test_db_url.startswith("postgresql://"):
                     return test_db_url.replace("postgresql://", "postgresql+psycopg://", 1)
                 return test_db_url
+            # Fast test path: in-memory shared SQLite (skips disk I/O). Requires URI mode.
+            if os.getenv("FAST_TESTS") == "1":
+                return "sqlite:///file:fasttests?mode=memory&cache=shared&uri=true"
             # Fallback: lightweight SQLite for local quick tests
             return "sqlite:///./test.db"
         url = os.getenv("DATABASE_URL")
@@ -68,6 +71,8 @@ class DatabaseConfig:
                 if test_db_url.startswith("postgresql://"):
                     return test_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
                 return test_db_url
+            if os.getenv("FAST_TESTS") == "1":
+                return "sqlite+aiosqlite:///file:fasttests?mode=memory&cache=shared&uri=true"
             return "sqlite+aiosqlite:///./test.db"
         url = os.getenv("ASYNC_DATABASE_URL")
         if not url:

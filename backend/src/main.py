@@ -16,9 +16,10 @@ except ImportError:  # pragma: no cover - router may not exist yet during partia
 from .routers import customers_router, inventory_router, orders_router
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, UTC
 from contextlib import asynccontextmanager
 from typing import Any  # noqa: F401
+import os
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +37,30 @@ from .config.database import (
 from .config.logging import configure_logging  # Structured logging (T031)
 
 logger = logging.getLogger(__name__)
+
+# Direct Prometheus instrumentation (native client) for deterministic metrics exposure.
+# OTEL-exported metrics may vary by environment; these native metrics ensure tests can reliably assert presence.
+try:  # pragma: no cover - import guarded for minimal environments
+    from prometheus_client import Counter as _PrcCounter, Histogram as _PrcHistogram, Gauge as _PrcGauge
+
+    APP_REQUEST_COUNT = _PrcCounter(
+        "app_requests_total",
+        "Total HTTP requests processed",
+        ["method", "path", "status"],
+    )
+    APP_REQUEST_LATENCY = _PrcHistogram(
+        "app_request_duration_seconds",
+        "Request latency in seconds",
+        ["method", "path", "status"],
+    )
+    APP_UPTIME_SECONDS = _PrcGauge(
+        "app_uptime_seconds",
+        "Application uptime in seconds",
+    )
+except Exception:  # pragma: no cover - fallback if prometheus_client unavailable
+    APP_REQUEST_COUNT = None  # type: ignore
+    APP_REQUEST_LATENCY = None  # type: ignore
+    APP_UPTIME_SECONDS = None  # type: ignore
 
 # Import API routers
 
@@ -97,6 +122,23 @@ class ResponseTimeMiddleware(BaseHTTPMiddleware):
         except Exception:  # pragma: no cover - metrics best-effort
             pass
 
+        # Native Prometheus metrics (deterministic for tests)
+        try:
+            if APP_REQUEST_COUNT is not None and APP_REQUEST_LATENCY is not None:
+                status = getattr(response, "status_code", 0)
+                path = request.url.path
+                # Avoid high-cardinality for docs/openapi/internal metrics if desired in future (keep for now)
+                APP_REQUEST_COUNT.labels(
+                    request.method, path, str(status)).inc()
+                APP_REQUEST_LATENCY.labels(
+                    request.method, path, str(status)).observe(duration_s)
+            if APP_UPTIME_SECONDS is not None:
+                # Update uptime gauge each request (lightweight; alternative would be background task)
+                APP_UPTIME_SECONDS.set(
+                    (datetime.now(UTC) - APP_START_TIME).total_seconds())
+        except Exception:  # pragma: no cover - do not interfere with request lifecycle
+            pass
+
         if response_time_ms > 200:
             logger.warning(
                 "Constitutional violation: Response time %.1fms exceeds 200ms limit for %s %s",
@@ -139,6 +181,9 @@ def get_password_hash(password: str) -> str:
 async def create_default_admin_user():
     """Create a default admin user if none exists."""
     try:
+        # Skip seeding in fast test mode to save DB round trips
+        if os.getenv("FAST_TESTS") == "1":
+            return
         async with get_async_db() as db:
             # Check if admin user already exists
             result = await db.execute(
@@ -183,7 +228,7 @@ async def create_default_admin_user():
         logger.error("Error creating default admin user: %s", e)
 
 
-APP_START_TIME = datetime.utcnow()
+APP_START_TIME = datetime.now(UTC)
 
 
 @asynccontextmanager
@@ -196,8 +241,13 @@ async def lifespan(app: FastAPI):  # FastAPI lifespan signature (app not directl
         # Structured logging & observability
         configure_logging()
         logger.info("Structured logging configured")
-        setup_observability()
-        logger.info("Observability setup complete")
+        # Lightweight fast-test mode (skip OTEL setup overhead)
+        if os.getenv("FAST_TESTS") == "1":
+            logger.info(
+                "FAST_TESTS=1 detected: skipping OpenTelemetry observability setup for speed")
+        else:
+            setup_observability()
+            logger.info("Observability setup complete")
 
         # Check database connection
         db_connected = await check_async_database_connection()
@@ -400,7 +450,8 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
         with trace_operation("runtime_metrics"):
             db_health = await async_database_health_check()
             monitor = performance_monitor  # global instance accumulating request metrics
-            uptime_seconds = (datetime.utcnow() - APP_START_TIME).total_seconds()
+            uptime_seconds = (datetime.now(UTC) -
+                              APP_START_TIME).total_seconds()
             return {
                 "status": "success",
                 "data": {

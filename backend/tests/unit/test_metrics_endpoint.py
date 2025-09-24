@@ -21,8 +21,8 @@ async def test_prometheus_metrics_endpoint_basic():  # noqa: D401
             # Library missing scenario
             assert "not installed" in resp.text.lower()
             return
-        # If 200, attempt to confirm (best-effort) presence of at least one custom metric name; if absent, do not fail hard.
+        # Assert deterministic native metrics added via prometheus_client (app_* metrics)
         text_payload = resp.text
-        custom_metric_names = ["api_request_duration_ms", "api_request_count"]
-        if not any(n in text_payload for n in custom_metric_names):
-            pytest.skip("Custom metrics not exposed yet in Prometheus payload (possibly metric reader version mismatch)")
+        assert "app_requests_total" in text_payload, "Expected native counter 'app_requests_total' missing"
+        assert "app_request_duration_seconds" in text_payload, "Expected histogram 'app_request_duration_seconds' missing"
+        assert "app_uptime_seconds" in text_payload, "Expected gauge 'app_uptime_seconds' missing"

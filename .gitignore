@@ -36,6 +36,8 @@ logs/
 backend/test.db
 backend/src/test.db
 backend/test.sqlite3
+test.db
+backend/test_mig.db
 *.sqlite3
 *.db-journal
 
