@@ -46,10 +46,13 @@ async def test_customer_reuse_on_duplicate_invoice(auth_client: AsyncClient, db_
 
     # Query DB to ensure only a single customer record exists for that name/phone
     result = await db_session.execute(
-        select(Customer).where(Customer.name == payload1["customer_name"], Customer.phone == payload1["customer_phone"])  # type: ignore[arg-type]
+        # type: ignore[arg-type]
+        select(Customer).where(Customer.name ==
+                               payload1["customer_name"], Customer.phone == payload1["customer_phone"])
     )
     customers = result.scalars().all()
-    assert len(customers) == 1, f"Expected 1 customer row, found {len(customers)}"
+    assert len(
+        customers) == 1, f"Expected 1 customer row, found {len(customers)}"
 
 
 @pytest.mark.asyncio
@@ -76,7 +79,8 @@ async def test_new_customer_created_for_different_phone(auth_client: AsyncClient
     assert inv1["customer_id"] != inv2["customer_id"], "Different phone should yield different customers"
 
     res = await db_session.execute(
-        select(Customer).where(Customer.name == base["customer_name"])  # type: ignore[arg-type]
+        select(Customer).where(Customer.name ==
+                               base["customer_name"])  # type: ignore[arg-type]
     )
     customers = res.scalars().all()
     # Two different customers for two distinct phone numbers

@@ -42,7 +42,8 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     assert inv2["amount"] == 200.5
     assert inv2["gst_rate"] == 5.0
     # gst = 200.50 * 5% = 10.025 -> rounded 10.03 (current rounding strategy)
-    assert inv2["gst_amount"] in (10.03, 10.02)  # allow for rounding differences until Decimal HALF_UP implemented
+    # allow for rounding differences until Decimal HALF_UP implemented
+    assert inv2["gst_amount"] in (10.03, 10.02)
     expected_total = round(inv2["amount"] + inv2["gst_amount"], 2)
     assert inv2["total_amount"] == expected_total
 

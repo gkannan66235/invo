@@ -66,4 +66,3 @@ async def test_invoice_recompute_on_amount_and_gst_change(auth_client: AsyncClie
     # Payment status should remain partial because paid_amount (50) < new total
     assert inv4["payment_status"] == "partial"
     assert abs(inv4["outstanding_amount"] - 127.0) < 1e-6
-

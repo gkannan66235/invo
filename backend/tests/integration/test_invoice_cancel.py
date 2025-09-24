@@ -33,7 +33,8 @@ async def test_invoice_cancellation_then_payment_flow(auth_client: AsyncClient):
     assert r_cancel.status_code == status.HTTP_200_OK, r_cancel.text
     inv_cancel = r_cancel.json()
     # Expect cancellation flag exposed
-    assert inv_cancel.get("is_cancelled") is True, "Cancellation flag not set in response"
+    assert inv_cancel.get(
+        "is_cancelled") is True, "Cancellation flag not set in response"
     # Still pending (no payment yet)
     assert inv_cancel["payment_status"] == "pending"
 
@@ -52,4 +53,3 @@ async def test_invoice_cancellation_then_payment_flow(auth_client: AsyncClient):
     assert inv_full.get("is_cancelled") is True
     assert inv_full["payment_status"] == "paid"
     assert abs(inv_full["outstanding_amount"]) < 1e-6
-
