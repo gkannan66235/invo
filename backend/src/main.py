@@ -7,11 +7,12 @@ from sqlalchemy import select
 from passlib.context import CryptContext
 from .routers.auth import router as auth_router
 from .routers.invoices import router as invoice_router
+from .routers.system import router as system_router
 from .routers import customers_router, inventory_router, orders_router
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Any  # noqa: F401
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +23,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config.database import (
-    create_database_tables_async,
     check_async_database_connection,
     async_database_health_check,
     get_async_db
@@ -51,7 +51,7 @@ except ImportError as e:  # noqa: F401
         def __exit__(self, *args):  # noqa: D401
             return False
 
-    def trace_operation(name):  # type: ignore
+    def trace_operation(_name):  # type: ignore
         return DummyContextManager()
 
     class PerformanceMonitor:  # type: ignore
@@ -157,7 +157,7 @@ async def create_default_admin_user():
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # FastAPI lifespan signature (app not directly used)
     """Application lifespan management."""
     # Startup
     logger.info("Starting up Invoice System API...")
@@ -183,7 +183,7 @@ async def lifespan(app: FastAPI):
 
         logger.info("Application startup complete")
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001 (startup safety net)
         logger.error("Application startup failed: %s", e)
         raise
 
@@ -196,7 +196,7 @@ async def lifespan(app: FastAPI):
 def create_application() -> FastAPI:
     """Create and configure FastAPI application."""
 
-    app = FastAPI(
+    application_obj = FastAPI(
         title="GST Compliant Service Center Management System",
         description="A comprehensive invoicing and inventory management system for service centers",
         version="1.0.0",
@@ -207,15 +207,15 @@ def create_application() -> FastAPI:
     )
 
     # Add middleware
-    setup_middleware(app)
+    setup_middleware(application_obj)
 
     # Add exception handlers
-    setup_exception_handlers(app)
+    setup_exception_handlers(application_obj)
 
     # Include routers
-    setup_routes(app)
+    setup_routes(application_obj)
 
-    return app
+    return application_obj
 
 
 def setup_middleware(app: FastAPI) -> None:
@@ -324,7 +324,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
         )
 
 
-def setup_routes(app: FastAPI) -> None:
+def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
     """Setup application routes."""
 
     # Health check endpoint
@@ -391,6 +391,7 @@ def setup_routes(app: FastAPI) -> None:
     app.include_router(orders_router, prefix="/api/v1/orders", tags=["Orders"])
     app.include_router(
         invoice_router, prefix="/api/v1/invoices", tags=["Invoices"])
+    app.include_router(system_router, prefix="/api/v1/system", tags=["System"])  # health/readiness
     # app.include_router(report_router, prefix="/api/v1/reports", tags=["Reports"])
 
 
