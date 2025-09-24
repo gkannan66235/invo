@@ -175,7 +175,8 @@ async def db_session():  # noqa: D401
 # Password hashing context (reduced rounds for faster tests)
 # ---------------------------------------------------------------------------
 TEST_BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "4"))
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=TEST_BCRYPT_ROUNDS)
+pwd_ctx = CryptContext(
+    schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=TEST_BCRYPT_ROUNDS)
 
 # ---------------------------------------------------------------------------
 # Early migration application to avoid gevent/locust monkeypatch side-effects
@@ -428,9 +429,11 @@ async def _test_engine():  # noqa: D401
         return
     async_url = test_db_url
     if async_url.startswith("postgresql+psycopg://"):
-        async_url = async_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+        async_url = async_url.replace(
+            "postgresql+psycopg://", "postgresql+asyncpg://", 1)
     elif async_url.startswith("postgresql://"):
-        async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        async_url = async_url.replace(
+            "postgresql://", "postgresql+asyncpg://", 1)
     engine = create_async_engine(async_url, echo=False, future=True)
     # Warm connection
     async with engine.begin() as conn:
@@ -449,16 +452,19 @@ async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
     """
     test_db_url = os.getenv("TEST_DB_URL")
     if not test_db_url:
-        async for session in get_async_db_dependency():  # type: ignore[func-returns-value]
+        # type: ignore[func-returns-value]
+        async for session in get_async_db_dependency():
             yield session
         return
     engine = _test_engine
-    AsyncTestSession = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False, autocommit=False)
+    AsyncTestSession = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False, autocommit=False)
     async with engine.connect() as conn:  # type: ignore[union-attr]
         outer = await conn.begin()
         nested = await conn.begin_nested()
         try:
-            async with AsyncTestSession(bind=conn) as session:  # type: ignore[arg-type]
+            # type: ignore[arg-type]
+            async with AsyncTestSession(bind=conn) as session:
                 yield session
                 await session.flush()
         finally:
@@ -469,27 +475,53 @@ async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
             await conn.close()
 
 # ---------------------------------------------------------------------------
-# Progress Percentage Output
+# Progress Percentage Output (with optional disable + per-test duration)
 # ---------------------------------------------------------------------------
 
+PROGRESS_CONFIG = None  # Global reference to pytest Config (set after collection)
+PROGRESS_START_TIMES = {}  # nodeid -> float start time
+
+
+def pytest_addoption(parser):  # noqa: D401
+    """Add --no-progress flag to disable progress output."""
+    parser.addoption(
+        "--no-progress",
+        action="store_true",
+        default=False,
+        help="Disable per-test progress percentage output (enabled by default).",
+    )
+
+
 def pytest_collection_finish(session):  # noqa: D401
-    """Store total test count after collection for progress reporting."""
-    session.config._invo_total_tests = len(session.items)  # type: ignore[attr-defined]
-    session.config._invo_completed_tests = 0  # type: ignore[attr-defined]
-    session.config._invo_last_reported_pct = -1  # type: ignore[attr-defined]
+    """Initialize counters and store config reference for progress reporting."""
+    global PROGRESS_CONFIG  # noqa: PLW0603
+    cfg = session.config
+    cfg._invo_total_tests = len(session.items)  # type: ignore[attr-defined]
+    cfg._invo_completed_tests = 0  # type: ignore[attr-defined]
+    cfg._invo_last_reported_pct = -1  # type: ignore[attr-defined]
+    cfg._invo_progress_enabled = not cfg.getoption("--no-progress")  # type: ignore[attr-defined]
+    PROGRESS_CONFIG = cfg
+
+
+def pytest_runtest_setup(item):  # noqa: D401
+    """Record per-test start time for duration reporting."""
+    import time as _time
+    PROGRESS_START_TIMES[item.nodeid] = _time.time()
 
 
 def pytest_runtest_logreport(report):  # noqa: D401
-    """Emit incremental progress lines showing percentage complete.
+    """Emit incremental progress lines with percentage + duration.
 
-    Runs only for the call phase. Uses stderr to avoid interfering with output capture.
+    Only processes the call phase for completed tests.
     """
     if report.when != "call":
         return
-    config = getattr(report, 'config', None)
+    config = PROGRESS_CONFIG
     if config is None:
         return
-    total = getattr(config, "_invo_total_tests", None)
+    if not getattr(config, "_invo_progress_enabled", True):  # type: ignore[attr-defined]
+        return
+    total = getattr(config, "_invo_total_tests", 0)
     if not total:
         return
     completed = getattr(config, "_invo_completed_tests", 0) + 1
@@ -499,15 +531,22 @@ def pytest_runtest_logreport(report):  # noqa: D401
     if pct != last_pct or report.failed:
         setattr(config, "_invo_last_reported_pct", pct)
         import sys as _sys, time as _time
-        print(f"[progress] {completed}/{total} ({pct}%) - {report.nodeid} - {report.outcome}", file=_sys.stderr, flush=True)
-        # Record last timestamp for heartbeat
+        start = PROGRESS_START_TIMES.pop(report.nodeid, None)
+        dur = f"{(_time.time() - start):.3f}s" if start else "-"
+        print(
+            f"[progress] {completed}/{total} ({pct}%) {dur} - {report.nodeid} - {report.outcome}",
+            file=_sys.stderr,
+            flush=True,
+        )
         config._invo_last_progress_time = _time.time()  # type: ignore[attr-defined]
 
 
 def pytest_report_teststatus(report, config):  # noqa: D401
-    """Emit heartbeat if no test finished for >30s (helps when perceived 'hang')."""
+    """Emit heartbeat if no test finished for >30s (helps perceived 'hang')."""
+    if not getattr(config, "_invo_progress_enabled", True):  # type: ignore[attr-defined]
+        return
     import time as _time, sys as _sys
-    total = getattr(config, "_invo_total_tests", None)
+    total = getattr(config, "_invo_total_tests", 0)
     if not total:
         return
     last = getattr(config, "_invo_last_progress_time", None)
@@ -515,8 +554,12 @@ def pytest_report_teststatus(report, config):  # noqa: D401
     if last is None:
         config._invo_last_progress_time = now  # type: ignore[attr-defined]
         return
-    if now - last > 30:  # 30s without completion -> heartbeat
+    if now - last > 30:
         completed = getattr(config, "_invo_completed_tests", 0)
-        pct = int(completed / total * 100) if total else 0
-        print(f"[progress-heartbeat] still running... {completed}/{total} ({pct}%)", file=_sys.stderr, flush=True)
+        pct = int(completed / total * 100)
+        print(
+            f"[progress-heartbeat] still running... {completed}/{total} ({pct}%)",
+            file=_sys.stderr,
+            flush=True,
+        )
         config._invo_last_progress_time = now  # type: ignore[attr-defined]
