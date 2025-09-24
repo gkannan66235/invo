@@ -67,6 +67,10 @@ def _seed_test_users():
 @pytest.fixture(scope="session", autouse=True)
 def _setup_test_db():
     """Create tables and seed users once per test session."""
+    # For evolving schema in early phase, ensure tables reflect latest model definitions.
+    # Simple approach: drop then recreate (SQLite in-memory / file is lightweight) to pick up new columns like is_deleted (T026).
+    from src.config.database import drop_database_tables  # local import to avoid circular
+    drop_database_tables()
     create_database_tables()
     _seed_test_users()
     yield

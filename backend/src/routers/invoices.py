@@ -265,6 +265,8 @@ def _to_frontend_invoice(invoice: Invoice, customer: Optional[Customer] = None) 
         "reverse_charge": invoice.reverse_charge,
         "outstanding_amount": float(invoice.outstanding_amount),
         "is_cancelled": bool(invoice.is_cancelled),
+        # Include is_deleted to enable UI decisions; list endpoint already filters them out (T026/T027)
+        "is_deleted": bool(getattr(invoice, 'is_deleted', False)),
     }
 
 
@@ -273,7 +275,13 @@ async def list_invoices(
     db: AsyncSession = Depends(get_async_db_dependency),
     current_user: User = Depends(get_current_user)
 ):
-    result = await db.execute(select(Invoice).order_by(Invoice.created_at.desc()).limit(100))
+    # Exclude soft-deleted invoices (T027)
+    result = await db.execute(
+        select(Invoice)
+        .where(Invoice.is_deleted.is_(False))
+        .order_by(Invoice.created_at.desc())
+        .limit(100)
+    )
     invoices = result.scalars().all()
 
     # Fetch customers for mapping to reduce N+1 (simple approach: gather ids then fetch)
@@ -512,6 +520,9 @@ async def delete_invoice(
         exc = HTTPException(status_code=404, detail='Invoice not found')
         setattr(exc, 'code', ERROR_CODES['not_found'])
         raise exc
-    await db.delete(invoice)
-    await db.commit()
+    # Soft delete (T026): mark as deleted but retain record
+    if not invoice.is_deleted:
+        invoice.is_deleted = True
+        await db.commit()
+        await db.refresh(invoice)
     return None

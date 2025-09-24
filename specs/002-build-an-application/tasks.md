@@ -50,8 +50,8 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [x] T023 Enforce default GST when omitted and use config value (File: `backend/src/routers/invoices.py`). (Depends: T022, T021)
 - [ ] T024 (REMOVED) Clarification allows tax edits after payment — no lock task.
 - [ ] T025 (REMOVED) Cancellation remains non-restrictive — no payment block implementation.
-- [ ] T026 Introduce soft delete (is_deleted flag) instead of hard delete (File: `backend/src/models/database.py`, `backend/src/routers/invoices.py`). (Depends: T021)
-- [ ] T027 List invoices endpoint filter out soft-deleted (File: `backend/src/routers/invoices.py`). (Depends: T026)
+- [x] T026 Introduce soft delete (is_deleted flag) instead of hard delete (File: `backend/src/models/database.py`, `backend/src/routers/invoices.py`). (Depends: T021)
+- [x] T027 List invoices endpoint filter out soft-deleted (File: `backend/src/routers/invoices.py`). (Depends: T026)
 - [ ] T028 Add invoice metrics emission (create/update/delete counters) (File: `backend/src/routers/invoices.py`, `backend/src/config/observability.py`). (Depends: T006)
 
 ### Phase 4: Integration & Observability

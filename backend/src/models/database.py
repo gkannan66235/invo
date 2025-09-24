@@ -502,6 +502,8 @@ class Invoice(Base):
     # Status and metadata
     is_cancelled = Column(Boolean, default=False)
     cancelled_at = Column(DateTime(timezone=True))
+    # Soft delete flag (T026)
+    is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True),
                         server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(
