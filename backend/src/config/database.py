@@ -33,7 +33,17 @@ class DatabaseConfig:
     def _get_database_url(self) -> str:
         """Get synchronous database URL from environment."""
         if os.getenv("TESTING", "false").lower() == "true":
-            # Use file-based SQLite for persistence across connections in tests
+            # Prefer explicit Postgres test DB if provided (higher fidelity than SQLite)
+            test_db_url = os.getenv("TEST_DB_URL")
+            if test_db_url:
+                # Ensure we return a *sync* driver URL for the sync engine
+                if test_db_url.startswith("postgresql+asyncpg://"):
+                    return test_db_url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+                # If already sync (psycopg) or plain postgresql:// just return as-is (upgraded below if needed)
+                if test_db_url.startswith("postgresql://"):
+                    return test_db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+                return test_db_url
+            # Fallback: lightweight SQLite for local quick tests
             return "sqlite:///./test.db"
         url = os.getenv("DATABASE_URL")
         if not url:
@@ -50,6 +60,14 @@ class DatabaseConfig:
     def _get_async_database_url(self) -> str:
         """Get asynchronous database URL from environment."""
         if os.getenv("TESTING", "false").lower() == "true":
+            test_db_url = os.getenv("TEST_DB_URL")
+            if test_db_url:
+                # Ensure async driver for Postgres
+                if test_db_url.startswith("postgresql+psycopg://"):
+                    return test_db_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+                if test_db_url.startswith("postgresql://"):
+                    return test_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                return test_db_url
             return "sqlite+aiosqlite:///./test.db"
         url = os.getenv("ASYNC_DATABASE_URL")
         if not url:

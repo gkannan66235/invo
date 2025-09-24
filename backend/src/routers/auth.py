@@ -134,7 +134,8 @@ async def get_current_user(
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            setattr(exc, "code", ERROR_CODES["auth_expired"])  # type: ignore[attr-defined]
+            # type: ignore[attr-defined]
+            setattr(exc, "code", ERROR_CODES["auth_expired"])
             raise exc
         except jwt.PyJWTError:
             exc = HTTPException(
@@ -142,7 +143,8 @@ async def get_current_user(
                 detail="Invalid authentication token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            # type: ignore[attr-defined]
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])
             raise exc
 
         username: str | None = payload.get("sub")  # type: ignore[assignment]
@@ -152,7 +154,8 @@ async def get_current_user(
                 detail="Invalid authentication token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            # type: ignore[attr-defined]
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])
             raise exc
 
         user = await get_user_by_username(db, username)
@@ -162,7 +165,8 @@ async def get_current_user(
                 detail="Invalid credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            # type: ignore[attr-defined]
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])
             raise exc
         return user
     except HTTPException:
@@ -197,7 +201,8 @@ async def login(
                 detail="Invalid credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            # type: ignore[attr-defined]
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])
             raise exc
 
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

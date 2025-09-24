@@ -180,20 +180,4 @@ class TestInventoryList:
             assert data["pagination"]["page_size"] <= 100
 
 
-# Fixtures for testing
-@pytest.fixture
-async def async_client():
-    """Create async test client for FastAPI application."""
-    # This will be implemented when the FastAPI app is created
-    # For now, this test will fail as expected in TDD
-    raise NotImplementedError(
-        "FastAPI app not yet implemented - TDD test should fail")
-
-
-@pytest.fixture
-def auth_headers():
-    """Authentication headers with JWT token."""
-    # This will be implemented when auth is created
-    # For now, this test will fail as expected in TDD
-    raise NotImplementedError(
-        "Auth system not yet implemented - TDD test should fail")
+# Placeholder fixtures removed; using shared fixtures from tests/conftest.py

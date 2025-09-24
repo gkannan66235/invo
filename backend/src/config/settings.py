@@ -12,7 +12,8 @@ from typing import Any
 
 try:
     from pydantic import BaseModel
-except ImportError:  # Minimal fallback if pydantic not available (should be installed)
+# Minimal fallback if pydantic not available (should be installed)
+except ImportError:
     class BaseModel:  # type: ignore
         def __init__(self, **data: Any):  # noqa: D401
             for k, v in data.items():
@@ -52,7 +53,8 @@ class Settings(BaseModel):
 
         return cls(
             DEFAULT_GST_RATE=_get_float("DEFAULT_GST_RATE", 18.0),
-            ACCESS_TOKEN_EXPIRE_MINUTES=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
+            ACCESS_TOKEN_EXPIRE_MINUTES=int(
+                os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
             ENABLE_TRACING=_get_bool("ENABLE_TRACING", False),
         )
 

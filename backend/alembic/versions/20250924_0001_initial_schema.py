@@ -59,11 +59,11 @@ def upgrade() -> None:
     op.create_index('idx_users_username_active',
                     'users', ['username', 'is_active'])
 
-    op.create_table('roles_users',
+    op.create_table('user_roles',
                     sa.Column('user_id', postgresql.UUID(
-                        as_uuid=True), nullable=False),
+                        as_uuid=True), nullable=False, primary_key=True),
                     sa.Column('role_id', postgresql.UUID(
-                        as_uuid=True), nullable=False),
+                        as_uuid=True), nullable=False, primary_key=True),
                     )
 
     op.create_table('customers',
@@ -231,6 +231,6 @@ def downgrade() -> None:
     op.drop_table('inventory_items')
     op.drop_table('suppliers')
     op.drop_table('customers')
-    op.drop_table('roles_users')
+    op.drop_table('user_roles')
     op.drop_table('users')
     op.drop_table('roles')

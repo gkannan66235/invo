@@ -32,9 +32,12 @@ async def test_list_invoices_p95_under_200ms(auth_client: AsyncClient):  # T018
     to_create = max(0, target_total - current_count)
     for i in range(to_create):
         idx = current_count + i
+        # Ensure phone stays a valid 10-digit starting with 9 (pattern ^(\+91|91)?[6-9]\d{9}$)
+        # Build a deterministic 10-digit number: leading 9 + 9-digit zero-padded index
+        phone_suffix = f"{idx:09d}"  # 9 digits
         payload = {
             "customer_name": f"PerfUser{idx}",
-            "customer_phone": f"900000{idx:05d}",
+            "customer_phone": f"9{phone_suffix}",  # total length = 10 digits
             "service_type": "perf",
             "service_description": "benchmark",
             "amount": 100 + (idx % 50),  # moderate variance

@@ -68,4 +68,5 @@ async def test_overpay_rejected(auth_client: AsyncClient):
 
     bad = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"paid_amount": 10000})
     assert bad.status_code == 400
-    assert "Invalid paid amount" in bad.text
+    # Domain error standardized message: Paid amount <x> exceeds total <y>
+    assert "exceeds total" in bad.text

@@ -5,7 +5,9 @@ uvicorn[standard]==0.24.0
 # Database
 sqlalchemy==2.0.36  # upgraded for Python 3.13 compatibility
 asyncpg==0.30.0  # Updated for Python 3.13 compatibility
-psycopg[binary]==3.2.10  # Added for sync engine (replaces psycopg2 import need)
+psycopg[binary]==3.2.10  # Retained for runtime usage
+pg8000==1.31.2  # Pure Python driver for synchronous Alembic migrations (avoids kqueue issues)
+psycopg2-binary==2.9.9  # Added as fallback sync driver for tests (selector compatibility)
 aiosqlite==0.20.0
 alembic==1.12.1  # Database migrations
 

@@ -26,7 +26,7 @@ async def test_soft_delete_flow_multiple_creates(auth_client: AsyncClient):
             },
         )
         assert r.status_code == status.HTTP_201_CREATED, r.text
-        created_ids.append(r.json()["id"])    
+        created_ids.append(r.json()["id"])
 
     # Soft delete the middle invoice
     mid_id = created_ids[1]

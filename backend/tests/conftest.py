@@ -1,7 +1,22 @@
-"""Test configuration and fixtures for contract tests.
+"""Test configuration and fixtures.
 
-Path manipulation must run before importing application modules so that
-`from src...` imports resolve when running `pytest` from the backend folder.
+Primary goals:
+1. Prefer a Postgres test database managed by Alembic migrations when TEST_DB_URL is provided.
+2. Fall back to legacy SQLite create_all() approach if Postgres not configured (developer convenience).
+3. Provide per-test transactional isolation (rollback) for Postgres to avoid cross-test mutation leakage.
+
+Environment Variables:
+    TESTING=true      -> activates test-oriented code paths in application
+    TEST_DB_URL=...   -> postgres:// or postgresql+asyncpg:// connection string for dedicated test DB
+
+Behavior Matrix:
+    If TEST_DB_URL set:
+        - Run Alembic migrations (synchronous) to head once per session.
+        - Use async engine derived from TEST_DB_URL (asyncpg driver conversion).
+        - Wrap each test in a SAVEPOINT (nested transaction) for isolation.
+    Else:
+        - Use legacy SQLite metadata drop/create for fast local iteration.
+        - No per-test rollback (state leakage possible across tests).
 """
 
 import sys
@@ -9,16 +24,17 @@ from pathlib import Path
 import os
 import asyncio
 import configparser
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from passlib.context import CryptContext
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.orm import sessionmaker
 
-# Ensure tests use lightweight SQLite database
+# Flag test mode early
 os.environ.setdefault("TESTING", "true")
 
 # --- Ensure backend root & src on sys.path BEFORE importing src.* ---
@@ -28,20 +44,26 @@ for p in (BACKEND_DIR, SRC_DIR):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from src.config.database import (
-    get_async_db_dependency,  # noqa: E402
-    create_database_tables,  # noqa: E402
-    SessionLocal  # noqa: E402
-)
+try:  # noqa: SIM105
+    from src.config.database import (  # type: ignore  # noqa: E402
+        get_async_db_dependency,
+        create_database_tables,
+        SessionLocal,
+    )
+except Exception:  # noqa: BLE001
+    # Static analysis / import-time failures (e.g., missing deps) are tolerated in lint context.
+    get_async_db_dependency = None  # type: ignore
+    create_database_tables = None  # type: ignore
+    SessionLocal = None  # type: ignore
 
 
-def _seed_test_users():
-    """Seed required users for contract tests (idempotent)."""
-    from src.models.database import User  # local import after path setup
+def _seed_test_users_sync(sync_session_factory: Optional[sessionmaker] = None):
+    """Seed required users for contract tests (idempotent, sync)."""
+    from src.models.database import User  # noqa: WPS433 (runtime import)
     pwd = pwd_ctx.hash("secure_password")
     admin_pwd = pwd_ctx.hash("admin123")
-    with SessionLocal() as session:
-        # test_admin user
+    SessionFac = sync_session_factory or SessionLocal
+    with SessionFac() as session:
         if not session.query(User).filter_by(username="test_admin").first():
             session.add(User(
                 username="test_admin",
@@ -51,7 +73,6 @@ def _seed_test_users():
                 is_active=True,
                 is_admin=True
             ))
-        # legacy admin user for other fixtures
         if not session.query(User).filter_by(email="admin@example.com").first():
             session.add(User(
                 username="admin",
@@ -65,26 +86,23 @@ def _seed_test_users():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _setup_test_db():
-    """Create tables and seed users once per test session."""
-    # For evolving schema in early phase, ensure tables reflect latest model definitions.
-    # Simple approach: drop then recreate (SQLite in-memory / file is lightweight) to pick up new columns like is_deleted (T026).
-    from src.config.database import drop_database_tables  # local import to avoid circular
-    drop_database_tables()
-    create_database_tables()
-    _seed_test_users()
+def _bootstrap_db():  # noqa: D401
+    """Bootstrap database for tests.
+
+    Postgres path: migrations + seed handled in pytest_configure (early) for gevent safety.
+    SQLite fallback: drop/create metadata here then seed.
+    """
+    if not os.getenv("TEST_DB_URL"):
+        from src.config.database import drop_database_tables, create_database_tables  # noqa: WPS433
+        drop_database_tables()
+        create_database_tables()
+        _seed_test_users_sync()
     yield
 
 
 from src.main import app  # noqa: E402
-from src.models.database import User  # noqa: E402
 
-# Ensure application root (backend/src) is importable when running tests directly
-BACKEND_DIR = Path(__file__).resolve().parents[1]
-SRC_DIR = BACKEND_DIR / "src"
-for p in [BACKEND_DIR, SRC_DIR]:
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
+# (path already added earlier)
 
 
 @pytest.fixture(scope="session")
@@ -96,45 +114,126 @@ def event_loop():
 
 
 @pytest_asyncio.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
-    """
-    Create async test client for FastAPI application.
-    This fixture will be used by contract tests.
-    """
+async def async_client() -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
+    """Async HTTP client for tests (no auth)."""
     async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
 
-
-@pytest.fixture
-def auth_headers() -> dict:
-    """
-    Authentication headers with JWT token.
-    For now returns empty dict - will be implemented when auth is created.
-    """
-    # TODO: Implement proper JWT token generation for tests
-    # This should create a valid JWT token for testing
-    return {
-        "Authorization": "Bearer test-token",
-        "Content-Type": "application/json"
-    }
+ # (Removed legacy auth_headers fixture; use auth_client fixture instead)
 
 
 @pytest_asyncio.fixture
-async def db_session():
-    """Provide an async DB session (shared DB, not isolated transaction).
+async def db_session():  # noqa: D401
+    """Async DB session with per-test transactional isolation when Postgres used.
 
-    NOTE: For true isolation, wrap each test in a SAVEPOINT / ROLLBACK strategy.
-    This simplified version is acceptable for early smoke tests but may allow
-    cross-test state leakage.
+    If TEST_DB_URL defined: begin a transaction + SAVEPOINT; rollback after test.
+    Else: fall back to simple dependency-provided session (SQLite legacy mode).
     """
-    async for session in get_async_db_dependency():
-        yield session
+    test_db_url = os.getenv("TEST_DB_URL")
+    if not test_db_url:
+        # Legacy path
+        async for session in get_async_db_dependency():
+            yield session
+        return
+
+    # Build async engine separate from global one to ensure proper lifecycle under tests
+    async_url = test_db_url
+    if async_url.startswith("postgresql+psycopg://"):
+        async_url = async_url.replace(
+            "postgresql+psycopg://", "postgresql+asyncpg://", 1)
+    elif async_url.startswith("postgresql://"):
+        async_url = async_url.replace(
+            "postgresql://", "postgresql+asyncpg://", 1)
+
+    engine = create_async_engine(async_url, echo=False, future=True)
+    AsyncTestSession = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False, autocommit=False)
+
+    async with engine.begin() as conn:
+        # (Tables already migrated) Ensure search_path / pragmas if needed
+        await conn.execute(text("SELECT 1"))
+
+    async with engine.connect() as conn:
+        trans = await conn.begin()
+        nested = await conn.begin_nested()
+        try:
+            # type: ignore[arg-type]
+            async with AsyncTestSession(bind=conn) as session:
+                yield session
+                await session.flush()
+        finally:
+            # Roll back nested and outer transaction to revert all changes
+            if nested.is_active:
+                await nested.rollback()
+            if trans.is_active:
+                await trans.rollback()
+            await conn.close()
+            await engine.dispose()
 
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# ---------------------------------------------------------------------------
+# Early migration application to avoid gevent/locust monkeypatch side-effects
+# ---------------------------------------------------------------------------
+# Locust's import triggers gevent.monkey.patch_all(), which mutates the 'select'
+# module and was breaking psycopg's use of selectors.KqueueSelector on macOS.
+# We therefore run synchronous Alembic migrations (and seeding) in
+# pytest_configure, which executes BEFORE test collection/import. This ensures
+# psycopg connects before gevent monkeypatching occurs in performance tests.
+
+_MIGRATIONS_APPLIED = False
+
+
+def _apply_migrations_and_seed():
+    """Run Alembic migrations & seed users for Postgres test DB (idempotent)."""
+    global _MIGRATIONS_APPLIED  # noqa: PLW0603
+    if _MIGRATIONS_APPLIED:
+        return
+    test_db_url = os.getenv("TEST_DB_URL")
+    if not test_db_url:
+        return
+    # Derive sync URL
+    sync_url = test_db_url
+    if sync_url.startswith("postgresql+asyncpg://"):
+        sync_url = sync_url.replace(
+            "postgresql+asyncpg://", "postgresql+pg8000://", 1)
+    elif sync_url.startswith("postgresql+psycopg://"):
+        sync_url = sync_url.replace(
+            "postgresql+psycopg://", "postgresql+pg8000://", 1)
+    elif sync_url.startswith("postgresql://") and "+pg8000" not in sync_url:
+        sync_url = sync_url.replace("postgresql://", "postgresql+pg8000://", 1)
+
+    # Run migrations programmatically
+    from alembic.config import Config  # inline import to avoid global dependency
+    from alembic import command
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    alembic_ini = Path(__file__).resolve().parents[1] / "alembic.ini"
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("sqlalchemy.url", sync_url)
+    command.upgrade(cfg, "head")
+
+    # Seed users via sync session
+    engine = create_engine(sync_url)
+    SyncSession = sessionmaker(
+        bind=engine, expire_on_commit=False, autoflush=False, autocommit=False)
+    try:
+        _seed_test_users_sync(SyncSession)
+    finally:
+        engine.dispose()
+    _MIGRATIONS_APPLIED = True
+
+
+def pytest_configure(config):  # noqa: D401
+    """Pytest hook: apply migrations then register custom markers (single hook)."""
+    _apply_migrations_and_seed()
+    _register_markers(config)
+
 
 async def _ensure_admin(session: AsyncSession):
+    from src.models.database import User  # noqa: WPS433
     result = await session.execute(select(User).where(User.email == "admin@example.com"))
     user = result.scalar_one_or_none()
     if not user:
@@ -151,9 +250,10 @@ async def _ensure_admin(session: AsyncSession):
 
 
 @pytest_asyncio.fixture
-async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa: PT019
+async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa: PT019 F811
     """Async client with valid JWT auth header for admin user."""
     await _ensure_admin(db_session)
+    # context manager for test client
     async with AsyncClient(app=app, base_url="http://test") as client:
         resp = await client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "admin123"})
         assert resp.status_code == 200, resp.text
@@ -168,42 +268,42 @@ async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa:
         yield client
 
 
+@pytest_asyncio.fixture
+async def auth_headers(db_session):  # noqa: D401
+    """Provide just the Authorization headers for admin user (for contract tests).
+
+    Separate from auth_client so tests that only need raw headers can still
+    use their own AsyncClient fixture if desired.
+    """
+    await _ensure_admin(db_session)
+    from httpx import AsyncClient as _AsyncClient  # local import to avoid confusion
+    async with _AsyncClient(app=app, base_url="http://test") as client:
+        resp = await client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "admin123"})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        if "data" in body and isinstance(body.get("data"), dict):
+            token = body["data"].get("access_token")
+        else:
+            token = body.get("access_token")
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
 @pytest.fixture
-def sample_customer_data():
-    """Sample customer data for testing."""
+def sample_customer_data():  # noqa: D401
+    """Return representative customer payload used across tests."""
     return {
-        "name": "Test Customer",
-        "email": "test@example.com",
-        "phone": "9876543210",
-        "gst_number": "29ABCDE1234F1Z5",
-        "address": {
-            "street": "123 Test Street",
-            "area": "Test Area",
-            "landmark": "Near Test Landmark",
-            "city": "Mumbai",
-            "state": "Maharashtra",
-            "pin_code": "400001"
-        },
+        "name": "Acme Corp",
         "customer_type": "business",
-        "credit_limit": 50000.00
-    }
-
-
-@pytest.fixture
-def sample_inventory_item_data():
-    """Sample inventory item data for testing."""
-    return {
-        "product_code": "PUMP001",
-        "description": "Centrifugal Water Pump 1HP",
-        "hsn_code": "8413",
-        "gst_rate": 18.0,
-        "current_stock": 10,
-        "minimum_stock_level": 5,
-        "purchase_price": 8000.00,
-        "selling_price": 10000.00,
-        "category": "pump",
-        "brand": "Test Brand",
-        "model": "TB-1HP"
+        "contact_name": "Jane Doe",
+        "email": "acme@example.com",
+        "phone": "+1-555-0100",
+        "gst_number": "27ABCDE1234F1Z5",
+        "billing_address": "123 Industrial Park",
+        "shipping_address": "123 Industrial Park",
+        "city": "Pune",
+        "state": "Maharashtra",
+        "country": "India",
+        "postal_code": "411001"
     }
 
 
@@ -232,23 +332,21 @@ def sample_order_data():
 pytest_plugins = []
 
 
-def pytest_configure(config):
-    """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "contract: mark test as a contract test"
-    )
-    config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "auth: mark test as requiring authentication"
-    )
+def _register_markers(config):  # noqa: D401
+    """Internal helper to register custom markers (invoked from hook)."""
+    markers = [
+        ("contract", "mark test as a contract test"),
+        ("integration", "mark test as an integration test"),
+        ("unit", "mark test as a unit test"),
+        ("slow", "mark test as slow running"),
+        ("auth", "mark test as requiring authentication"),
+        ("performance", "mark test as a performance benchmark"),
+    ]
+    for name, desc in markers:
+        config.addinivalue_line("markers", f"{name}: {desc}")
+
+
+# (Removed duplicate pytest_configure; marker registration handled in unified hook above)
 
 
 def pytest_sessionfinish(session, exitstatus):  # noqa: D401, ARG001

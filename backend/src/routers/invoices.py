@@ -335,9 +335,13 @@ async def create_invoice(
         customer_id = customer.id
         subtotal = float(payload.amount)
         # Apply default GST if omitted (T023)
-        effective_gst_rate = payload.gst_rate if payload.gst_rate is not None else get_default_gst_rate()
-        gst_rate = float(effective_gst_rate)
-        gst_amount = round(subtotal * gst_rate / 100, 2)
+        # Distinguish between omitted/None (use default) vs explicit provided value (could be 0)
+        if payload.gst_rate is None:
+            effective_gst_rate = get_default_gst_rate()
+            gst_rate = float(effective_gst_rate)
+        else:
+            gst_rate = float(payload.gst_rate)
+        gst_amount = round(subtotal * (gst_rate or 0) / 100, 2)
         total_amount = round(subtotal + gst_amount, 2)
         place_of_supply = payload.place_of_supply or 'KA'
         notes = payload.service_description or payload.notes
@@ -420,6 +424,9 @@ def _apply_update(invoice: Invoice, payload: InvoiceUpdate):
 
     if payload.gst_rate is not None:
         invoice.gst_rate = float(payload.gst_rate)
+    # If gst_rate stayed None (legacy invoices) recompute with 0 rate so math consistent
+    if invoice.gst_rate is None:
+        invoice.gst_rate = 0.0
 
     # Recompute if amount or gst_rate changed
     if payload.gst_rate is not None or payload.amount is not None:

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from passlib.context import CryptContext
 from .routers.auth import router as auth_router
 from .routers.invoices import router as invoice_router
+from .routers import customers_router, inventory_router, orders_router
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -172,10 +173,19 @@ async def lifespan(app: FastAPI):
             logger.error("Failed to connect to database")
             raise RuntimeError("Database connection failed")
 
-        # Create database tables (legacy path if migrations not yet applied). In production, prefer Alembic.
-        await create_database_tables_async()
-        logger.info(
-            "Database tables verified/created (consider Alembic for schema evolution)")
+        # Legacy path: table auto-create. This will be removed (T030) once all
+        # environments rely exclusively on Alembic migrations.
+        import os
+        testing = os.getenv('TESTING', 'false').lower() == 'true'
+        test_db_url = os.getenv('TEST_DB_URL')
+        if testing and not test_db_url:
+            # Only auto-create when in legacy SQLite test mode (no TEST_DB_URL)
+            await create_database_tables_async()
+            logger.info(
+                "[startup] Tables auto-created in TESTING (SQLite legacy) mode.")
+        else:
+            logger.info("[startup] Skipping metadata create_all; assume migrations applied (TEST_DB_URL=%s)",
+                        'set' if test_db_url else 'unset')
 
         # Create default admin user
         await create_default_admin_user()
@@ -383,9 +393,11 @@ def setup_routes(app: FastAPI) -> None:
     # Include API routers
     app.include_router(auth_router, prefix="/api/v1/auth",
                        tags=["Authentication"])
-    # app.include_router(customer_router, prefix="/api/v1/customers", tags=["Customers"])
-    # app.include_router(inventory_router, prefix="/api/v1/inventory", tags=["Inventory"])
-    # app.include_router(order_router, prefix="/api/v1/orders", tags=["Orders"])
+    app.include_router(
+        customers_router, prefix="/api/v1/customers", tags=["Customers"])
+    app.include_router(
+        inventory_router, prefix="/api/v1/inventory", tags=["Inventory"])
+    app.include_router(orders_router, prefix="/api/v1/orders", tags=["Orders"])
     app.include_router(
         invoice_router, prefix="/api/v1/invoices", tags=["Invoices"])
     # app.include_router(report_router, prefix="/api/v1/reports", tags=["Reports"])

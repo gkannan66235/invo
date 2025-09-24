@@ -55,7 +55,7 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     assert inv3["payment_status"] == "partial"
     assert inv3["outstanding_amount"] == round(inv3["total_amount"] - 50.0, 2)
 
-    # Case 2: Create with empty gst_rate string -> treat as 0
+    # Case 2: Create with empty gst_rate string -> treat as omitted and apply default rate
     create_payload2 = {
         "customer_name": "StringNumUser2",
         "customer_phone": "9200000018",
@@ -68,6 +68,10 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     assert r_create2.status_code == status.HTTP_201_CREATED, r_create2.text
     inv_empty = r_create2.json()
     assert inv_empty["amount"] == 80.0
-    # Current implementation returns gst_rate as None when omitted/empty; gst_amount should be 0
-    assert inv_empty["gst_amount"] == 0.0
-    assert inv_empty["total_amount"] == 80.0
+    # Expect gst_rate equals configured default (18 unless overridden) and gst math matches
+    from src.config.settings import get_default_gst_rate  # type: ignore
+    default_rate = get_default_gst_rate()
+    assert inv_empty["gst_rate"] == pytest.approx(default_rate)
+    expected_gst2 = round(80 * default_rate / 100, 2)
+    assert inv_empty["gst_amount"] == expected_gst2
+    assert inv_empty["total_amount"] == round(80 + expected_gst2, 2)

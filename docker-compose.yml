@@ -46,8 +46,8 @@ services:
         condition: service_healthy
     networks:
       - gst_network
-  # Entrypoint script in Dockerfile handles migrations then starts uvicorn
-  command: ./scripts/entrypoint.sh
+    # Entrypoint script in Dockerfile handles migrations then starts uvicorn
+    command: ./scripts/entrypoint.sh
 
   # Next.js Frontend
   frontend:

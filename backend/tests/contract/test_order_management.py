@@ -242,16 +242,4 @@ class TestOrderList:
         assert response_data["error"]["code"] == "UNAUTHORIZED"
 
 
-# Fixtures would be defined in conftest.py - included here for TDD failure
-@pytest.fixture
-async def async_client():
-    """Create async test client for FastAPI application."""
-    raise NotImplementedError(
-        "FastAPI app not yet implemented - TDD test should fail")
-
-
-@pytest.fixture
-def auth_headers():
-    """Authentication headers with JWT token."""
-    raise NotImplementedError(
-        "Auth system not yet implemented - TDD test should fail")
+# Placeholder fixtures removed; global fixtures used
