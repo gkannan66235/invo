@@ -16,9 +16,11 @@ def _success(data, **meta):
     from time import time as _now
     return {"status": "success", "data": data, "meta": meta or None, "timestamp": _now()}
 
+
 @router.get("/health", tags=["System"])  # liveness
 async def health():
     return _success({"ok": True})
+
 
 @router.get("/readiness", tags=["System"])  # readiness: db connectivity
 async def readiness():

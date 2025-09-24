@@ -17,6 +17,7 @@ except Exception:  # pragma: no cover - fallback if library missing
 
 router = APIRouter()
 
+
 @router.get("/metrics", include_in_schema=False)
 async def prometheus_metrics() -> Response:  # noqa: D401
     if generate_latest is None:
