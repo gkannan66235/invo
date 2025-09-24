@@ -47,7 +47,7 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [ ] T020 Standard error response builder & adopt in auth router (File: `backend/src/routers/auth.py`). (Depends: T002, T007, T008)
 - [ ] T021 [Sequential] Adopt error response builder in invoices router (File: `backend/src/routers/invoices.py`). (Depends: T020, tests T009-T013)
 - [x] T022 Add default GST rate config in settings (File: `backend/src/config/settings.py`). (Depends: T001)
-- [ ] T023 Enforce default GST when omitted and use config value (File: `backend/src/routers/invoices.py`). (Depends: T022, T021)
+- [x] T023 Enforce default GST when omitted and use config value (File: `backend/src/routers/invoices.py`). (Depends: T022, T021)
 - [ ] T024 (REMOVED) Clarification allows tax edits after payment — no lock task.
 - [ ] T025 (REMOVED) Cancellation remains non-restrictive — no payment block implementation.
 - [ ] T026 Introduce soft delete (is_deleted flag) instead of hard delete (File: `backend/src/models/database.py`, `backend/src/routers/invoices.py`). (Depends: T021)

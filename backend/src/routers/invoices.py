@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config.database import get_async_db_dependency
 from ..models.database import Invoice, Customer, PaymentStatus, GSTTreatment
 from ..utils.errors import ERROR_CODES, OverpayNotAllowed
+from ..config.settings import get_default_gst_rate
 from .auth import get_current_user, User
 
 router = APIRouter()
@@ -40,7 +41,8 @@ class InvoiceCreate(BaseModel):
     service_type: Optional[str] = None
     service_description: Optional[str] = None
     amount: Optional[float] = Field(default=None, ge=0)
-    gst_rate: Optional[float] = Field(default=18, ge=0)
+    # Default moved to runtime (settings) in T023; keep None here to detect omission explicitly
+    gst_rate: Optional[float] = Field(default=None, ge=0)
 
     # Backend style
     customer_id: Optional[UUID] = None
@@ -324,7 +326,9 @@ async def create_invoice(
             await db.flush()  # Get customer.id
         customer_id = customer.id
         subtotal = float(payload.amount)
-        gst_rate = float(payload.gst_rate or 0)
+        # Apply default GST if omitted (T023)
+        effective_gst_rate = payload.gst_rate if payload.gst_rate is not None else get_default_gst_rate()
+        gst_rate = float(effective_gst_rate)
         gst_amount = round(subtotal * gst_rate / 100, 2)
         total_amount = round(subtotal + gst_amount, 2)
         place_of_supply = payload.place_of_supply or 'KA'
