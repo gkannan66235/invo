@@ -9,7 +9,11 @@ from typing import Optional
 
 import structlog
 from opentelemetry import trace, metrics
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
+try:
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader
+except ImportError:
+    # Fallback for different OpenTelemetry versions
+    PrometheusMetricReader = None
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -53,6 +57,16 @@ def configure_observability(
         prometheus_enabled=enable_prometheus,
         prometheus_port=prometheus_port if enable_prometheus else None
     )
+
+
+# Backwards-compatible alias expected by main.py (legacy import name)
+def setup_observability(
+    service_name: str = "gst-service-center",
+    environment: str = "development",
+    enable_prometheus: bool = True,
+    prometheus_port: int = 8001
+):  # noqa: D401
+    return configure_observability(service_name, environment, enable_prometheus, prometheus_port)
 
 
 def configure_structured_logging(service_name: str, environment: str) -> None:
@@ -135,7 +149,7 @@ def configure_tracing(service_name: str, environment: str) -> None:
         span_processor = BatchSpanProcessor(console_exporter)
         tracer_provider.add_span_processor(span_processor)
 
-    # TODO: Add OTLP exporter for production (Azure Monitor, Jaeger, etc.)
+    # Future enhancement: Add OTLP exporter for production (e.g. Azure Monitor / Jaeger)
     # if environment == "production":
     #     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     #     otlp_exporter = OTLPSpanExporter(endpoint="http://jaeger:14250")
@@ -145,12 +159,17 @@ def configure_tracing(service_name: str, environment: str) -> None:
 def configure_metrics(prometheus_port: int) -> None:
     """Configure OpenTelemetry metrics with Prometheus export."""
 
-    # Create Prometheus metric reader
-    prometheus_reader = PrometheusMetricReader()
+    # Create Prometheus metric reader if available
+    if PrometheusMetricReader is not None:
+        prometheus_reader = PrometheusMetricReader()
+        metric_readers = [prometheus_reader]
+    else:
+        # Fallback to basic metrics without Prometheus export
+        metric_readers = []
 
     # Initialize meter provider
     meter_provider = MeterProvider(
-        metric_readers=[prometheus_reader]
+        metric_readers=metric_readers
     )
     metrics.set_meter_provider(meter_provider)
 
@@ -285,3 +304,55 @@ class PerformanceMonitor:
 
 # Global performance monitor instance
 performance_monitor = PerformanceMonitor()
+
+# Domain-specific counters (T006) — emission wired in later task (T028)
+try:  # Guard in case metrics backend not fully configured
+    _domain_meter = get_meter("billingbee.domain")
+    invoice_create_counter = _domain_meter.create_counter(
+        name="invoice_create_total",
+        description="Total number of invoices created"
+    )
+    invoice_update_counter = _domain_meter.create_counter(
+        name="invoice_update_total",
+        description="Total number of invoices updated"
+    )
+    invoice_delete_counter = _domain_meter.create_counter(
+        name="invoice_delete_total",
+        description="Total number of invoices deleted (or soft-deleted)"
+    )
+    auth_login_counter = _domain_meter.create_counter(
+        name="auth_login_total",
+        description="Total number of successful logins"
+    )
+    auth_login_failed_counter = _domain_meter.create_counter(
+        name="auth_login_failed_total",
+        description="Total number of failed login attempts"
+    )
+except Exception as instrumentation_error:  # noqa: BLE001
+    # Intentional broad catch: metrics subsystem is optional; proceed without counters
+    invoice_create_counter = None  # type: ignore
+    invoice_update_counter = None  # type: ignore
+    invoice_delete_counter = None  # type: ignore
+    auth_login_counter = None  # type: ignore
+    auth_login_failed_counter = None  # type: ignore
+
+__all__ = [
+    "configure_observability",
+    "setup_observability",
+    "configure_structured_logging",
+    "configure_tracing",
+    "configure_metrics",
+    "instrument_fastapi",
+    "instrument_sqlalchemy",
+    "get_tracer",
+    "get_meter",
+    "trace_operation",
+    "PerformanceMonitor",
+    "performance_monitor",
+    # Counters (may be None if instrumentation failed)
+    "invoice_create_counter",
+    "invoice_update_counter",
+    "invoice_delete_counter",
+    "auth_login_counter",
+    "auth_login_failed_counter",
+]

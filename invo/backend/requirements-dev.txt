@@ -1,6 +1,9 @@
 # Include production requirements
 -r requirements.txt
 
+# Build tooling / compiled extension helpers (added to avoid resolver selecting missing pre-release)
+Cython==3.0.2
+
 # Additional development tools
 jupyter==1.0.0
 ipython==8.18.1
@@ -13,6 +16,7 @@ mkdocs-material==9.4.8
 # Database management
 pgcli==4.0.1
 
-# Performance profiling
-line-profiler==4.1.1
+# Performance profiling (line-profiler temporarily disabled: Cython pin (3.0.0a11) incompat on Py>=3.12)
+# Re-enable with a compatible version once released, e.g.:
+# line-profiler==4.1.3
 memory-profiler==0.61.0

@@ -146,16 +146,6 @@ class TestAuthLogin:
         assert response.status_code == status.HTTP_200_OK
 
 
-# Fixtures for testing
-@pytest.fixture
-async def async_client():
-    """Create async test client for FastAPI application."""
-    # This will be implemented when the FastAPI app is created
-    # For now, this test will fail as expected in TDD
-    raise NotImplementedError(
-        "FastAPI app not yet implemented - TDD test should fail")
-
-
 # Test data fixtures
 @pytest.fixture
 def valid_login_payload():

@@ -35,7 +35,7 @@ services:
       SECRET_KEY: your-secret-key-change-in-production
       ENVIRONMENT: development
       LOG_LEVEL: INFO
-      CORS_ORIGINS: http://localhost:3000,http://localhost:8080
+      CORS_ORIGINS: http://localhost:3000,http://frontend:3000
     ports:
       - "8000:8000"
     volumes:
@@ -46,7 +46,27 @@ services:
         condition: service_healthy
     networks:
       - gst_network
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+  # Entrypoint script in Dockerfile handles migrations then starts uvicorn
+  command: ./scripts/entrypoint.sh
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - gst_network
 
   # Redis for caching and session management (for offline sync)
   redis:

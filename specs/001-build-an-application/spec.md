@@ -3,7 +3,7 @@
 **Feature Branch**: `001-build-an-application`  
 **Created**: 2025-09-23  
 **Status**: Draft  
-**Input**: User description: "build an application that can be used as billing application, which can have stock, inventory, billing. This application will be used by service center to manage spare ports stock and billing to customer. Ths will be GST billing software for retail India. inventory for pumps and motors, service. 100% GST compliance"
+**Input**: User description: "build an application that can be used as billing application, which can have stock, inventory, billing. This application will be used by motor & pump service center to manage spare ports stock and billing to customer. Ths will be GST billing software for retail India. inventory for pumps and motors, service. 100% GST compliance. Make the application more configuration driven. Appliction name will be BillingBee"
 
 ## Clarifications
 

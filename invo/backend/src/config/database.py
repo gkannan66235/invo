@@ -7,7 +7,7 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, Generator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -32,6 +32,9 @@ class DatabaseConfig:
 
     def _get_database_url(self) -> str:
         """Get synchronous database URL from environment."""
+        if os.getenv("TESTING", "false").lower() == "true":
+            # Use file-based SQLite for persistence across connections in tests
+            return "sqlite:///./test.db"
         url = os.getenv("DATABASE_URL")
         if not url:
             # Default local PostgreSQL configuration
@@ -40,52 +43,68 @@ class DatabaseConfig:
             database = os.getenv("DB_NAME", "invoice_system")
             username = os.getenv("DB_USER", "postgres")
             password = os.getenv("DB_PASSWORD", "postgres")
-            url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+            # Explicit psycopg v3 driver URL (was postgresql:// which triggered psycopg2)
+            url = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
         return url
 
     def _get_async_database_url(self) -> str:
         """Get asynchronous database URL from environment."""
+        if os.getenv("TESTING", "false").lower() == "true":
+            return "sqlite+aiosqlite:///./test.db"
         url = os.getenv("ASYNC_DATABASE_URL")
         if not url:
             # Convert sync URL to async URL
             sync_url = self._get_database_url()
-            url = sync_url.replace("postgresql://", "postgresql+asyncpg://")
+            if sync_url.startswith("postgresql+psycopg://"):
+                # Replace psycopg driver with asyncpg driver
+                url = sync_url.replace(
+                    "postgresql+psycopg://", "postgresql+asyncpg://")
+            elif sync_url.startswith("postgresql://"):
+                url = sync_url.replace(
+                    "postgresql://", "postgresql+asyncpg://")
+            else:
+                # Fallback: if already async or different db, reuse
+                url = sync_url
         return url
 
 
 # Global database configuration
 db_config = DatabaseConfig()
 
-# Create engines
-engine = create_engine(
-    db_config.database_url,
-    echo=db_config.echo,
-    poolclass=QueuePool,
-    pool_size=db_config.pool_size,
-    max_overflow=db_config.max_overflow,
-    pool_timeout=db_config.pool_timeout,
-    pool_recycle=db_config.pool_recycle,
-    # Connection arguments for better performance
-    connect_args={
-        "application_name": "invoice_system",
-        "options": "-c timezone=UTC"
-    }
-)
+# Create engines with driver-specific connection arguments
+if db_config.database_url.startswith("sqlite"):
+    # SQLite doesn't support the PostgreSQL specific connect args
+    engine = create_engine(
+        db_config.database_url,
+        echo=db_config.echo,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(
+        db_config.database_url,
+        echo=db_config.echo,
+        poolclass=QueuePool,
+        pool_size=db_config.pool_size,
+        max_overflow=db_config.max_overflow,
+        pool_timeout=db_config.pool_timeout,
+        pool_recycle=db_config.pool_recycle,
+        connect_args={
+            "application_name": "invoice_system",
+            "options": "-c timezone=UTC"
+        }
+    )
 
-async_engine = create_async_engine(
-    db_config.async_database_url,
-    echo=db_config.echo,
-    poolclass=QueuePool,
-    pool_size=db_config.pool_size,
-    max_overflow=db_config.max_overflow,
-    pool_timeout=db_config.pool_timeout,
-    pool_recycle=db_config.pool_recycle,
-    # Connection arguments for better performance
-    connect_args={
-        "application_name": "invoice_system_async",
-        "server_settings": {"timezone": "UTC"}
-    }
-)
+if db_config.async_database_url.startswith("sqlite+aiosqlite"):
+    async_engine = create_async_engine(
+        db_config.async_database_url,
+        echo=db_config.echo,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    async_engine = create_async_engine(
+        db_config.async_database_url,
+        echo=db_config.echo,
+    )
 
 # Create session factories
 SessionLocal = sessionmaker(
@@ -240,7 +259,7 @@ def check_database_connection() -> bool:
     """Check if database connection is working."""
     try:
         with get_db() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
         return True
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
@@ -251,7 +270,7 @@ async def check_async_database_connection() -> bool:
     """Check if async database connection is working."""
     try:
         async with get_async_db() as db:
-            await db.execute("SELECT 1")
+            await db.execute(text("SELECT 1"))
         return True
     except Exception as e:
         logger.error(f"Async database connection check failed: {e}")
@@ -289,7 +308,6 @@ def database_health_check() -> dict:
             "checked_in": engine.pool.checkedin(),
             "checked_out": engine.pool.checkedout(),
             "overflow": engine.pool.overflow(),
-            "invalid": engine.pool.invalid(),
         }
 
         return {
@@ -318,7 +336,6 @@ async def async_database_health_check() -> dict:
             "checked_in": async_engine.pool.checkedin(),
             "checked_out": async_engine.pool.checkedout(),
             "overflow": async_engine.pool.overflow(),
-            "invalid": async_engine.pool.invalid(),
         }
 
         return {

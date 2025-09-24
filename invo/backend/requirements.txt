@@ -3,13 +3,15 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
 # Database
-sqlalchemy==2.0.23
-asyncpg==0.29.0  # PostgreSQL async driver
+sqlalchemy==2.0.36  # upgraded for Python 3.13 compatibility
+asyncpg==0.30.0  # Updated for Python 3.13 compatibility
+psycopg[binary]==3.2.10  # Added for sync engine (replaces psycopg2 import need)
+aiosqlite==0.20.0
 alembic==1.12.1  # Database migrations
 
 # Data Validation & Serialization
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic==2.10.2
+pydantic-settings==2.3.3
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
@@ -33,13 +35,16 @@ opentelemetry-api==1.21.0
 opentelemetry-sdk==1.21.0
 opentelemetry-instrumentation-fastapi==0.42b0
 opentelemetry-instrumentation-sqlalchemy==0.42b0
+opentelemetry-exporter-prometheus==1.12.0rc1
+opentelemetry-exporter-jaeger==1.21.0
+opentelemetry-exporter-otlp==1.21.0
 prometheus-client==0.19.0
 structlog==23.2.0
 
 # Utilities
 python-dateutil==2.8.2
 pytz==2023.3
-uuid-utils==0.7.0
+# Removed uuid-utils (Rust build fails on Python 3.13; not critical for core functionality)
 
 # Development
 pre-commit==3.6.0

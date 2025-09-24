@@ -1,14 +1,86 @@
+"""Test configuration and fixtures for contract tests.
+
+Path manipulation must run before importing application modules so that
+`from src...` imports resolve when running `pytest` from the backend folder.
 """
-Test configuration and fixtures for contract tests.
-"""
+
+import sys
+from pathlib import Path
+import os
+import asyncio
+import configparser
+from typing import AsyncGenerator
 
 import pytest
-import asyncio
-from typing import AsyncGenerator
+import pytest_asyncio
 from httpx import AsyncClient
+from passlib.context import CryptContext
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.main import app
-from src.config.database import get_async_db_dependency
+# Ensure tests use lightweight SQLite database
+os.environ.setdefault("TESTING", "true")
+
+# --- Ensure backend root & src on sys.path BEFORE importing src.* ---
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = BACKEND_DIR / "src"
+for p in (BACKEND_DIR, SRC_DIR):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
+from src.config.database import (
+    get_async_db_dependency,  # noqa: E402
+    create_database_tables,  # noqa: E402
+    SessionLocal  # noqa: E402
+)
+
+
+def _seed_test_users():
+    """Seed required users for contract tests (idempotent)."""
+    from src.models.database import User  # local import after path setup
+    pwd = pwd_ctx.hash("secure_password")
+    admin_pwd = pwd_ctx.hash("admin123")
+    with SessionLocal() as session:
+        # test_admin user
+        if not session.query(User).filter_by(username="test_admin").first():
+            session.add(User(
+                username="test_admin",
+                email="test_admin@example.com",
+                password_hash=pwd,
+                full_name="Test Admin",
+                is_active=True,
+                is_admin=True
+            ))
+        # legacy admin user for other fixtures
+        if not session.query(User).filter_by(email="admin@example.com").first():
+            session.add(User(
+                username="admin",
+                email="admin@example.com",
+                password_hash=admin_pwd,
+                full_name="Administrator",
+                is_active=True,
+                is_admin=True
+            ))
+        session.commit()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _setup_test_db():
+    """Create tables and seed users once per test session."""
+    create_database_tables()
+    _seed_test_users()
+    yield
+
+
+from src.main import app  # noqa: E402
+from src.models.database import User  # noqa: E402
+
+# Ensure application root (backend/src) is importable when running tests directly
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = BACKEND_DIR / "src"
+for p in [BACKEND_DIR, SRC_DIR]:
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
 
 @pytest.fixture(scope="session")
@@ -19,7 +91,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def async_client() -> AsyncGenerator[AsyncClient, None]:
     """
     Create async test client for FastAPI application.
@@ -43,16 +115,53 @@ def auth_headers() -> dict:
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session():
+    """Provide an async DB session (shared DB, not isolated transaction).
+
+    NOTE: For true isolation, wrap each test in a SAVEPOINT / ROLLBACK strategy.
+    This simplified version is acceptable for early smoke tests but may allow
+    cross-test state leakage.
     """
-    Database session fixture for tests.
-    Creates a test database session.
-    """
-    # TODO: Implement test database session
-    # This should create an isolated test database session
     async for session in get_async_db_dependency():
         yield session
+
+
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def _ensure_admin(session: AsyncSession):
+    result = await session.execute(select(User).where(User.email == "admin@example.com"))
+    user = result.scalar_one_or_none()
+    if not user:
+        user = User(
+            username="admin",
+            email="admin@example.com",
+            password_hash=pwd_ctx.hash("admin123"),
+            full_name="Administrator",
+            is_active=True,
+            is_admin=True,
+        )
+        session.add(user)
+        await session.commit()
+
+
+@pytest_asyncio.fixture
+async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa: PT019
+    """Async client with valid JWT auth header for admin user."""
+    await _ensure_admin(db_session)
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        resp = await client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "admin123"})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        # Support both legacy flat response and new envelope during transition
+        if "data" in body and isinstance(body.get("data"), dict):
+            token = body["data"].get("access_token")
+        else:
+            token = body.get("access_token")
+        client.headers.update(
+            {"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        yield client
 
 
 @pytest.fixture
@@ -136,3 +245,67 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "auth: mark test as requiring authentication"
     )
+
+
+def pytest_sessionfinish(session, exitstatus):  # noqa: D401, ARG001
+    """Enforce invoice router specific coverage threshold (>=90%).
+
+    Implements T004 supplemental domain coverage gate.
+    Reads path & threshold from pytest.ini [invoice_coverage] section.
+    If coverage data absent (e.g., -k single test without coverage), silently skip.
+    """
+    try:
+        from coverage import Coverage
+    except ImportError:  # coverage plugin not installed
+        return
+
+    ini_path = Path(__file__).resolve().parents[1] / "pytest.ini"
+    if not ini_path.exists():  # Should not happen
+        return
+
+    parser = configparser.ConfigParser()
+    parser.read(ini_path)
+    if "invoice_coverage" not in parser:
+        return
+    path = parser["invoice_coverage"].get("path", "src/routers/invoices.py")
+    try:
+        threshold = float(parser["invoice_coverage"].get("fail_under", "90"))
+    except ValueError:
+        threshold = 90.0
+
+    data_file = os.getenv("COVERAGE_FILE", ".coverage")
+    if not Path(data_file).exists():  # No coverage data generated
+        return
+
+    cov = Coverage(data_file=data_file)
+    try:
+        cov.load()
+    except Exception:  # noqa: BLE001  # Safe fallback: coverage import optional
+        return
+
+    try:
+        filename = Path(path)
+        if not filename.exists():
+            # Support running from backend dir where relative path valid
+            filename = Path(".") / path
+        if not filename.exists():
+            return
+        analysis = cov.analysis2(str(filename))
+    except Exception:  # noqa: BLE001  # Coverage analysis may fail for partial runs
+        return
+
+    # analysis2 returns (filename, statements, excluded, missing, missing_formatted)
+    statements = analysis[1]
+    missing = analysis[3]
+    total = len(statements)
+    missed = len(missing)
+    if total == 0:
+        return
+    covered = total - missed
+    pct = covered / total * 100.0
+    if pct + 1e-9 < threshold:  # small epsilon
+        session.exitstatus = 1
+        session.config.warn(
+            code="INVOICE_COV",
+            message=f"Invoice router coverage {pct:.2f}% below required {threshold:.2f}% (statements={total}, missed={missed})"
+        )

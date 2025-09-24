@@ -12,11 +12,26 @@ from sqlalchemy import (
     Boolean, DateTime, Integer, String, Text, Numeric,
     ForeignKey, Table, Column, Index, CheckConstraint
 )
-from sqlalchemy.dialects.postgresql import UUID as PostgresUUID, JSONB
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.postgresql import UUID as PostgresUUID, JSONB as PG_JSONB
+from sqlalchemy import JSON as GenericJSON
+import os
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 
+TESTING = os.getenv("TESTING", "false").lower() == "true"
+
+
+def _uuid_default():
+    from uuid import uuid4
+    return uuid4()
+
+
+if os.getenv("TESTING", "false").lower() == "true":
+    # In testing (SQLite), map PostgreSQL JSONB to generic JSON for compatibility
+    JSONB = GenericJSON  # type: ignore
+else:
+    JSONB = PG_JSONB  # type: ignore
 
 Base = declarative_base()
 
@@ -83,7 +98,8 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else func.gen_random_uuid())
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -114,7 +130,8 @@ class Role(Base):
     __tablename__ = 'roles'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else func.gen_random_uuid())
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text)
     permissions = Column(JSONB, default=list)
@@ -133,7 +150,8 @@ class Customer(Base):
     __tablename__ = 'customers'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else func.gen_random_uuid())
     name = Column(String(100), nullable=False, index=True)
     email = Column(String(255), index=True)
     phone = Column(String(15), index=True)
@@ -202,7 +220,8 @@ class Supplier(Base):
     __tablename__ = 'suppliers'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else func.gen_random_uuid())
     name = Column(String(100), nullable=False, index=True)
     email = Column(String(255), index=True)
     phone = Column(String(15), index=True)
@@ -238,7 +257,8 @@ class InventoryItem(Base):
     __tablename__ = 'inventory_items'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else func.gen_random_uuid())
     product_code = Column(String(50), unique=True, nullable=False, index=True)
     description = Column(Text, nullable=False)
     # Harmonized System of Nomenclature
@@ -317,7 +337,8 @@ class Order(Base):
     __tablename__ = 'orders'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else func.gen_random_uuid())
     order_number = Column(String(50), unique=True, nullable=False, index=True)
     order_type = Column(String(20), nullable=False,
                         default=OrderType.SALE.value)
@@ -462,6 +483,9 @@ class Invoice(Base):
     gst_amount = Column(Numeric(15, 2), nullable=False)
     total_amount = Column(Numeric(15, 2), nullable=False)
     paid_amount = Column(Numeric(15, 2), default=0)
+    # Newly persisted fields
+    gst_rate = Column(Numeric(5, 2))  # Percentage (e.g. 18.00)
+    service_type = Column(String(100))
 
     # GST compliance
     place_of_supply = Column(String(50), nullable=False)
