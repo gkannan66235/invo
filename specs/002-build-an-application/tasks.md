@@ -36,7 +36,7 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [x] T014 [P] Integration test: Reuse existing customer on duplicate create (File: `backend/tests/integration/test_customer_dedup.py`).
 - [x] T015 [P] Integration test: Update amount & gst_rate triggers recompute (File: `backend/tests/integration/test_invoice_recompute.py`).
 - [x] T016 [P] Integration test: Cancellation sets `lifecycle_status=cancelled` and still allows subsequent payment (File: `backend/tests/integration/test_invoice_cancel.py`). (Maps FR-012)
-- [ ] T017 [P] Integration test: Numeric string coercion (amount, gst_rate) (File: `backend/tests/integration/test_invoice_numeric_string.py`).
+- [x] T017 [P] Integration test: Numeric string coercion (amount, gst_rate) (File: `backend/tests/integration/test_invoice_numeric_string.py`).
 - [ ] T018 [P] Performance test: list 100 invoices <200ms p95 harness (File: `backend/tests/performance/test_invoice_perf.py`). (Depends: T005)
 
 ### Phase 3: Core Implementation Adjustments
