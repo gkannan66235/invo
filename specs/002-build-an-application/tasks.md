@@ -106,22 +106,35 @@ Group C (observability after T028):
 
 ### Phase 6: Clarification-Driven Additions
 
-- [ ] T044 Contract test: GET /api/v1/invoices/{id} detail includes required fields & editable after payments (File: `backend/tests/contract/test_invoices_detail.py`). (Maps FR-017, FR-008a)
+- [ ] T044 Contract test: GET /api/v1/invoices/{id} detail includes required fields & editable after payments (File: `backend/tests/contract/test_invoices_detail.py`). (Maps FR-017, FR-008)
 - [ ] T045 Contract + integration tests: Soft delete hides from list but detail accessible (File: `backend/tests/contract/test_invoices_soft_delete.py`, `backend/tests/integration/test_invoices_soft_delete_flow.py`). (Depends: T026/T027; Maps FR-018)
 - [ ] T046 Contract test: Omitted gst_rate applies DEFAULT_GST_RATE env (File: `backend/tests/contract/test_invoices_default_gst.py`). (Maps FR-022)
 - [ ] T047 Contract test: Malformed due_date rejected with VALIDATION_ERROR (File: `backend/tests/contract/test_invoices_due_date_validation.py`). (Maps FR-021)
 - [ ] T048 Contract test: Expired JWT returns 401 AUTH_TOKEN_EXPIRED (File: `backend/tests/contract/test_auth_token_expired.py`). (Maps NFR-008)
-- [ ] T049 Unit test: Payment status downgrade after amount/gst edit (File: `backend/tests/unit/test_payment_status_downgrade.py`). (Maps FR-008a)
+- [ ] T049 Unit test: Payment status downgrade after amount/gst edit (File: `backend/tests/unit/test_payment_status_downgrade.py`). (Maps FR-008)
 - [ ] T050 Unit test: Normalization of camelCase & numeric strings (File: `backend/tests/unit/test_invoice_normalization.py`). (Maps FR-013/FR-014/FR-020)
 - [ ] T051 Integration test: Simulated DB failure returns standardized DB_ERROR (File: `backend/tests/integration/test_db_failure_resilience.py`). (Maps NFR-010)
 - [ ] T052 Service layer unit tests post-refactor (File: `backend/tests/unit/test_invoice_service_refactored.py`). (Depends: T037)
-- [ ] T053 Update DELETE route to perform soft delete (File: `backend/src/routers/invoices.py`). (Depends: T026)
+- [ ] T053 Unit test: Cancelled invoice invariants (only allowed fields editable; payments still permitted) (File: `backend/tests/unit/test_cancel_invariants.py`). (Maps FR-016, FR-017)
 - [ ] T054 Metrics test: Counters increment after operations (File: `backend/tests/integration/test_metrics_counters.py`). (Depends: T028, T032; Maps NFR-007)
 
 ### Phase 7: Remediation (Coverage & Clarifications)
 
 - [ ] T055 Contract test: PATCH non-existent invoice returns 404 `INVOICE_NOT_FOUND` (File: `backend/tests/contract/test_invoices_update_not_found.py`). (Maps FR-023)
 - [ ] T056 Unit test: Unknown extra fields dropped & absent in response (File: `backend/tests/unit/test_invoice_unknown_fields.py`). (Maps FR-013)
+
+### Phase 8: Expanded Coverage & Performance Hardening
+
+- [ ] T057 Contract test: Invoice number format & uniqueness `INV-YYYYMMDD-NNNN` (File: `backend/tests/contract/test_invoice_numbering.py`). (Maps FR-005)
+- [ ] T058 Integration test: `created_at` immutable; `updated_at` changes on update (File: `backend/tests/integration/test_invoice_timestamps.py`). (Maps FR-019)
+- [ ] T059 Performance test: invoice creation p95 <300ms (File: `backend/tests/performance/test_invoice_creation_perf.py`). (Maps NFR-002)
+- [ ] T060 Security test: bcrypt hash cost factor >=12 (File: `backend/tests/unit/test_password_hash_cost.py`). (Maps NFR-009)
+- [ ] T061 Unit test: Monetary rounding HALF_UP edge cases (.005, .004, large values) (File: `backend/tests/unit/test_rounding.py`). (Maps NFR-011)
+- [ ] T062 Concurrency test: Parallel invoice creation preserves uniqueness (File: `backend/tests/integration/test_invoice_number_race.py`). (Maps FR-005, NFR-002)
+- [ ] T063 Unit test: JWT TTL boundary (token valid just before 24h, invalid after) (File: `backend/tests/unit/test_jwt_ttl.py`). (Maps NFR-008)
+- [ ] T064 Metrics audit test: Counter & labels naming consistency (File: `backend/tests/unit/test_metrics_naming.py`). (Maps NFR-007)
+- [ ] T065 Accessibility test: Keyboard-only navigation & ARIA labels invoice form (File: `frontend/tests/a11y/test_invoice_form_accessibility.ts`). (Maps A11Y)
+- [ ] T066 Traceability script: auto-generate FR/NFR → task matrix (File: `scripts/gen_traceability_matrix.py`). (Meta compliance)
 
 ## Removed / Superseded Tasks Log
 
@@ -130,7 +143,7 @@ Group C (observability after T028):
 
 ## Validation Checklist
 
-- All FR-001..FR-025 mapped to at least one test or implementation task (plus added tasks T044–T054 for gaps).
+- All FR-001..FR-025 mapped to at least one test or implementation task (including remediation tasks T044–T056 and expanded coverage T057–T066).
 - NFR performance & coverage tasks included (T005, T018, T040, T041).
 - Observability tasks (T006, T028, T032, T031, T054) present.
 - Accessibility & documentation tasks (T042, T039) included.

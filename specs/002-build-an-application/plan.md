@@ -32,12 +32,28 @@ Planned Modifications:
 
 ## 4. Invoice Domain Logic Summary
 
-Computed Fields:
+Computed Fields (Monetary Rounding):
 
-- `gst_amount = round(subtotal * gst_rate / 100, 2)`
-- `total_amount = round(subtotal + gst_amount, 2)`
-- `outstanding_amount = total_amount - paid_amount`
-  Payment Status Derivation:
+All monetary values use `Decimal` with quantization `Decimal('0.01')` and HALF_UP rounding (NFR-011) to avoid binary float drift and ensure .005 rounds upward.
+
+```
+from decimal import Decimal, ROUND_HALF_UP
+
+TWOPLACES = Decimal('0.01')
+
+def quantize(v: Decimal) -> Decimal:
+  return v.quantize(TWOPLACES, rounding=ROUND_HALF_UP)
+
+subtotal_d = Decimal(str(subtotal))
+gst_rate_d = Decimal(str(gst_rate))
+gst_amount = quantize(subtotal_d * gst_rate_d / Decimal('100'))
+total_amount = quantize(subtotal_d + gst_amount)
+outstanding_amount = quantize(total_amount - paid_amount_d)
+```
+
+Outstanding amount always recomputed from persisted canonical values; never incrementally mutated to avoid accumulation error.
+Payment Status Derivation:
+
 - `PAID` if `paid_amount == total_amount`
 - `PARTIAL` if `0 < paid_amount < total_amount`
 - `PENDING` if `paid_amount == 0`
@@ -119,18 +135,44 @@ Test Pyramid:
 - Performance Tests: p95 assertions (best-effort harness using repeated invocation & timing; tolerant threshold exit on CI).
 - Observability Verification: Metrics endpoint counters after operations.
 
-Traceability (Sample Mapping):
+Traceability (Expanded Mapping):
 
-- FR-003/004/008 → create invoice contract test (T009) + gst recompute test (T015) + GST unit (T035)
-- FR-009/010/011/025 → overpay (T011), payment transition (T010), payment status unit (T036)
-- FR-017 → detail view (T044)
-- FR-018 → soft delete tests (T045) + implementation (T026/T053)
-- FR-022 → default GST omission test (T046)
-- FR-021 → malformed due date test (T047)
-- NFR-001/002 → performance test (T018)
-- NFR-007 → metrics test (T054)
-- NFR-008 → token expiry test (T048)
-- NFR-010 → DB failure test (T051)
+Functional Requirements:
+
+- FR-001 Authentication (login) → T007/T008 (+ security hashing validated T060 indirectly)
+- FR-003/FR-004/FR-008 Invoice creation & recompute after edits → T009, T015, T035, T049
+- FR-005 Invoice numbering uniqueness & format → T057, T062
+- FR-009/FR-010/FR-011/FR-025 Payment transitions & overpay prevention → T010, T011, T036
+- FR-012 Cancellation semantics (non-restrictive) → T016, T053 (invariants)
+- FR-013 Unknown field stripping → T056
+- FR-014 Normalization (camelCase → snake_case) → T050
+- FR-017 Detail view completeness/editable after payments → T044
+- FR-018 Soft delete behavior → T026 (impl), T045 (tests)
+- FR-019 Timestamp semantics → T058
+- FR-020 Numeric string coercion → T050
+- FR-021 Due date validation → T047
+- FR-022 Default GST application → T046
+- FR-023 Not found handling → T055
+- FR-024 Canonical error codes list → Implementation section 5 + validated across contract tests (T007–T013, T044–T048, T055)
+
+Non-Functional Requirements:
+
+- NFR-001 Overall responsiveness (list) → T018
+- NFR-002 Performance (creation) → T059, concurrency uniqueness T062
+- NFR-003 Coverage thresholds → T004, T040
+- NFR-007 Metrics/observability → T006, T028, T032, T054, T064
+- NFR-008 Security token expiry → T048, boundary test T063
+- NFR-009 Password hashing strength → T060
+- NFR-010 Resilience DB error path → T051
+- NFR-011 Monetary rounding correctness → T061 (plus implementation snippet above)
+- NFR-012 Single currency assumption (documented) → Plan Section 7 (no test)
+
+Accessibility & Meta:
+
+- Accessibility (forms) → T042, T065
+- Compliance / Traceability automation → T066
+
+Each requirement now maps to at least one explicit test (or documented constraint where testing is non-applicable, e.g., NFR-012). A generated matrix (future T066) will codify this mapping programmatically.
 
 Coverage Targets (NFR-003): enforce via `pytest --cov` gate (T004/T040).
 
@@ -153,7 +195,7 @@ Coverage Targets (NFR-003): enforce via `pytest --cov` gate (T004/T040).
 (Not blocking MVP but tracked for future clarification.)
 
 - (Resolved) FR-001: Login accepts `identifier` (username OR email) + password; uniqueness enforced separately.
-- FR-024: Final canonical error codes list expansion (currently minimal set).
+- (Resolved) FR-024: Canonical error codes enumerated; further additions treated as backlog items not blocking.
 - Roles / permissions model (deferred).
 - Multi-currency & currency formatting (NFR-012). Current assumption: single INR currency, store numeric decimals.
 
