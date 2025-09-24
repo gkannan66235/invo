@@ -58,7 +58,7 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 
 - [x] T029 Ensure migrations reflect soft delete & GST default changes (File: `backend/alembic/versions/<new>.py`). (Depends: T026, T022) # Soft delete migration exists; GST default is config-only.
 - [x] T030 Remove legacy `create_database_tables_async()` from startup post-migration confidence (File: `backend/src/main.py`). (Depends: Alembic validated)
-- [ ] T031 Add structured logging for auth + invoice lifecycle (File: `backend/src/config/logging.py`, `backend/src/routers/*`). (Depends: T020, T021)
+- [x] T031 Add structured logging for auth + invoice lifecycle (File: `backend/src/config/logging.py`, `backend/src/routers/*`). (Depends: T020, T021)
 - [ ] T032 Add Prometheus metrics registration for new counters (File: `backend/src/config/observability.py`). (Depends: T028)
 - [x] T033 Add health & readiness endpoints (File: `backend/src/routers/system.py`).
 

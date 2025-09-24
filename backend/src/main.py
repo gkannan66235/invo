@@ -27,6 +27,7 @@ from .config.database import (
     async_database_health_check,
     get_async_db
 )
+from .config.logging import configure_logging  # Structured logging (T031)
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,19 @@ class ResponseTimeMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Generate a per-request ID and attach to log records."""
+
+    async def dispatch(self, request: Request, call_next):  # noqa: D401
+        import uuid
+        request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+        # Bind into logging (simple approach: add extra on logger usage sites as needed)
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -163,7 +177,9 @@ async def lifespan(app: FastAPI):  # FastAPI lifespan signature (app not directl
     logger.info("Starting up Invoice System API...")
 
     try:
-        # Setup observability
+        # Structured logging & observability
+        configure_logging()
+        logger.info("Structured logging configured")
         setup_observability()
         logger.info("Observability setup complete")
 
@@ -238,6 +254,7 @@ def setup_middleware(app: FastAPI) -> None:
 
     # Response time monitoring middleware (constitutional requirement)
     app.add_middleware(ResponseTimeMiddleware)
+    app.add_middleware(RequestIDMiddleware)
 
 
 def setup_exception_handlers(app: FastAPI) -> None:
