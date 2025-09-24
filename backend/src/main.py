@@ -8,6 +8,10 @@ from passlib.context import CryptContext
 from .routers.auth import router as auth_router
 from .routers.invoices import router as invoice_router
 from .routers.system import router as system_router
+try:
+    from .routers.metrics import router as metrics_router  # Prometheus metrics (T032)
+except ImportError:  # pragma: no cover - router may not exist yet during partial installs
+    metrics_router = None  # type: ignore
 from .routers import customers_router, inventory_router, orders_router
 import logging
 import time
@@ -373,26 +377,21 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
             "timestamp": time.time()
         }
 
-    # Metrics endpoint for monitoring
-    @app.get("/metrics")
-    async def metrics():
-        """Basic metrics endpoint."""
-        with trace_operation("metrics"):
-            # Get performance metrics
+    # Runtime JSON metrics (renamed to avoid conflict with Prometheus /metrics)
+    @app.get("/api/v1/system/runtime-metrics", tags=["System"], summary="Runtime JSON metrics")
+    async def runtime_metrics():
+        """Runtime JSON metrics (internal diagnostic view, not Prometheus format)."""
+        with trace_operation("runtime_metrics"):
             monitor = PerformanceMonitor()
-
-            # Get database health
             db_health = await async_database_health_check()
-
             return {
                 "status": "success",
                 "data": {
-                    "uptime": time.time(),  # This would be calculated properly in production
                     "database": db_health,
                     "performance": {
-                        "avg_response_time": monitor.avg_response_time,
-                        "request_count": monitor.request_count,
-                        "error_count": monitor.error_count
+                        "avg_response_time": getattr(monitor, "avg_response_time", 0),
+                        "request_count": getattr(monitor, "request_count", 0),
+                        "error_count": getattr(monitor, "error_count", 0)
                     }
                 },
                 "timestamp": time.time()
@@ -409,6 +408,9 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
     app.include_router(
         invoice_router, prefix="/api/v1/invoices", tags=["Invoices"])
     app.include_router(system_router, prefix="/api/v1/system", tags=["System"])  # health/readiness
+    if metrics_router is not None:
+        # Exposes /metrics (Prometheus exposition format) without API prefix
+        app.include_router(metrics_router)
     # app.include_router(report_router, prefix="/api/v1/reports", tags=["Reports"])
 
 
