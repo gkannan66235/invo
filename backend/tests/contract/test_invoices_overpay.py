@@ -18,7 +18,9 @@ async def test_invoice_overpay_rejected_contract(auth_client: AsyncClient):
     }
     resp = await auth_client.post("/api/v1/invoices/", json=payload)
     assert resp.status_code == status.HTTP_201_CREATED, resp.text
-    invoice = resp.json()
+    env = resp.json()
+    assert env.get("status") == "success"
+    invoice = env["data"]
 
     # Attempt overpay (invoice total will be 118.0) -> pay 500
     over = await auth_client.patch(f"/api/v1/invoices/{invoice['id']}", json={"paid_amount": 500})

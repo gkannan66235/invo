@@ -173,19 +173,10 @@ async def lifespan(app: FastAPI):
             logger.error("Failed to connect to database")
             raise RuntimeError("Database connection failed")
 
-        # Legacy path: table auto-create. This will be removed (T030) once all
-        # environments rely exclusively on Alembic migrations.
-        import os
-        testing = os.getenv('TESTING', 'false').lower() == 'true'
-        test_db_url = os.getenv('TEST_DB_URL')
-        if testing and not test_db_url:
-            # Only auto-create when in legacy SQLite test mode (no TEST_DB_URL)
-            await create_database_tables_async()
-            logger.info(
-                "[startup] Tables auto-created in TESTING (SQLite legacy) mode.")
-        else:
-            logger.info("[startup] Skipping metadata create_all; assume migrations applied (TEST_DB_URL=%s)",
-                        'set' if test_db_url else 'unset')
+        # Removed legacy auto-create path (T030): schema must be managed solely via Alembic migrations.
+        # Tests relying on SQLite fallback now handle create/drop in test fixtures.
+        logger.info(
+            "[startup] Relying exclusively on Alembic migrations for schema management")
 
         # Create default admin user
         await create_default_admin_user()

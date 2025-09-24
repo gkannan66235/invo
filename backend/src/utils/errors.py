@@ -10,6 +10,8 @@ import time
 ERROR_CODES = {
     "validation": "VALIDATION_ERROR",
     "not_found": "NOT_FOUND",
+    # Domain specific specialisations (Phase 3 adoption)
+    "invoice_not_found": "INVOICE_NOT_FOUND",
     "auth_invalid": "AUTH_INVALID_CREDENTIALS",
     "auth_expired": "AUTH_TOKEN_EXPIRED",
     "overpay": "OVERPAY_NOT_ALLOWED",

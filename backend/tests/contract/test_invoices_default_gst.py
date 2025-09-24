@@ -32,7 +32,9 @@ async def test_invoice_default_gst_applied_when_omitted(auth_client: AsyncClient
     }
     resp = await auth_client.post("/api/v1/invoices/", json=payload)
     assert resp.status_code == status.HTTP_201_CREATED, resp.text
-    body = resp.json()
+    env1 = resp.json()
+    assert env1.get("status") == "success"
+    body = env1["data"]
 
     assert body["gst_rate"] == pytest.approx(22.5)
     expected_gst = round(payload["amount"] * 22.5 / 100, 2)
@@ -59,7 +61,9 @@ async def test_invoice_explicit_gst_rate_not_overwritten(auth_client: AsyncClien
     }
     resp = await auth_client.post("/api/v1/invoices/", json=payload)
     assert resp.status_code == status.HTTP_201_CREATED, resp.text
-    body = resp.json()
+    env2 = resp.json()
+    assert env2.get("status") == "success"
+    body = env2["data"]
 
     assert body["gst_rate"] == pytest.approx(5.0)
     expected_gst = round(payload["amount"] * 5.0 / 100, 2)

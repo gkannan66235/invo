@@ -29,14 +29,17 @@ async def test_create_invoice_contract_basic(auth_client: AsyncClient):
 
     resp = await auth_client.post("/api/v1/invoices/", json=payload)
     assert resp.status_code == status.HTTP_201_CREATED, resp.text
-    body = resp.json()
+    envelope = resp.json()
+    assert envelope.get("status") == "success"
+    body = envelope.get("data")
+    assert isinstance(body, dict)
 
     # Presence of key fields
     for field in [
         "id", "invoice_number", "amount", "gst_rate", "gst_amount", "total_amount",
         "outstanding_amount", "payment_status", "created_at", "updated_at"
     ]:
-        assert field in body, f"Missing field '{field}' in response: {body}"
+        assert field in body, f"Missing field '{field}' in response data: {body}"
 
     # Basic GST math assertions
     amount = payload["amount"]

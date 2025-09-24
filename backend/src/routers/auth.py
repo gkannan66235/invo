@@ -1,10 +1,13 @@
-"""
-Authentication router for the GST Service Center Management System.
-Provides JWT-based authentication endpoints.
+"""Authentication router (Phase 3 adjustments: T019 layering notes, T020 error schema adoption).
+
+Improvements implemented in this revision:
+ - JWT configuration sourced from environment variables (JWT_SECRET, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS)
+ - Standardized error codes via error helpers (AUTH_INVALID_CREDENTIALS, AUTH_TOKEN_EXPIRED)
+ - Metrics counters emission for login success/failure (ties to observability plan section 9 & T028 prerequisites)
+ - Layering annotation referencing service layer (future extraction of auth logic if expanded)
 """
 
 from datetime import datetime, timedelta, UTC
-import time
 import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,18 +18,54 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..config.database import get_async_db_dependency
-from ..models.database import User
-from ..config.observability import trace_operation
-from ..utils.errors import ERROR_CODES
+# Import strategy: prefer 'src.' package (expected when running `pytest` from backend dir).
+# Fallback: if ImportError occurs (running from repo root without PYTHONPATH tweak), append backend dir.
+try:
+    from src.config.database import get_async_db_dependency  # type: ignore
+    from src.models.database import User  # type: ignore
+    from src.config.observability import (  # type: ignore
+        trace_operation,
+        auth_login_counter,
+        auth_login_failed_counter,
+    )
+    from src.utils.errors import ERROR_CODES  # type: ignore
+except ImportError:  # noqa: F401
+    import sys
+    from pathlib import Path
+    backend_dir = Path(__file__).resolve().parents[3]  # .../backend
+    if str(backend_dir) not in sys.path:
+        sys.path.append(str(backend_dir))
+    from src.config.database import get_async_db_dependency  # type: ignore
+    from src.models.database import User  # type: ignore
+    from src.config.observability import (  # type: ignore
+        trace_operation,
+        auth_login_counter,
+        auth_login_failed_counter,
+    )
+    from src.utils.errors import ERROR_CODES  # type: ignore
 
-# Configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # Should be from environment
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Configuration (env-driven per plan section 7)
+SECRET_KEY = os.getenv("JWT_SECRET", "dev-insecure-secret-change")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+# Plan specifies ACCESS_TOKEN_EXPIRE_HOURS=24 (fallback 0.5h for legacy tests if unset)
+ACCESS_TOKEN_EXPIRE_HOURS = float(
+    os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "0.5"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(ACCESS_TOKEN_EXPIRE_HOURS * 60)
 
 # Setup
 router = APIRouter()
+
+
+def _success(data: dict, **meta):  # small helper for standardized envelope
+    from time import time as _now  # noqa: F401 (local import to avoid global import noise)
+    return {
+        "status": "success",
+        "data": data,
+        "meta": meta or None,
+        "timestamp": _now()
+    }
+
+
 security = HTTPBearer()
 # Allow configurable (lower) bcrypt rounds in TESTING to meet performance SLA
 _bcrypt_rounds = int(os.getenv("BCRYPT_ROUNDS", "12"))
@@ -122,56 +161,52 @@ async def get_current_user(
     - AUTH_INVALID_CREDENTIALS for any other auth failure
     """
     try:
-        try:
-            payload = jwt.decode(
-                credentials.credentials,
-                SECRET_KEY,
-                algorithms=[ALGORITHM]
-            )
-        except jwt.ExpiredSignatureError:
-            exc = HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token expired",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-            # type: ignore[attr-defined]
-            setattr(exc, "code", ERROR_CODES["auth_expired"])
-            raise exc
-        except jwt.PyJWTError:
-            exc = HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-            # type: ignore[attr-defined]
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])
-            raise exc
+        payload = jwt.decode(
+            credentials.credentials,
+            SECRET_KEY,
+            algorithms=[ALGORITHM]
+        )
+    except jwt.ExpiredSignatureError as exc:
+        http_exc = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        # type: ignore[attr-defined]
+        setattr(http_exc, "code", ERROR_CODES["auth_expired"])
+        raise http_exc from exc
+    except jwt.PyJWTError as exc:
+        http_exc = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        # type: ignore[attr-defined]
+        setattr(http_exc, "code", ERROR_CODES["auth_invalid"])
+        raise http_exc from exc
 
-        username: str | None = payload.get("sub")  # type: ignore[assignment]
-        if not username:
-            exc = HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-            # type: ignore[attr-defined]
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])
-            raise exc
+    username: str | None = payload.get("sub")  # type: ignore[assignment]
+    if not username:
+        http_exc = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        # type: ignore[attr-defined]
+        setattr(http_exc, "code", ERROR_CODES["auth_invalid"])
+        raise http_exc
 
-        user = await get_user_by_username(db, username)
-        if user is None:
-            exc = HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-            # type: ignore[attr-defined]
-            setattr(exc, "code", ERROR_CODES["auth_invalid"])
-            raise exc
-        return user
-    except HTTPException:
-        # Re-raise to be handled by global handler which will format envelope
-        raise
+    user = await get_user_by_username(db, username)
+    if user is None:
+        http_exc = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        # type: ignore[attr-defined]
+        setattr(http_exc, "code", ERROR_CODES["auth_invalid"])
+        raise http_exc
+    return user
 
 # Routes
 
@@ -194,8 +229,10 @@ async def login(
             if candidate and verify_password(login_request.password, candidate.password_hash):
                 user = candidate
 
-        if not user:
-            # Standardized invalid auth code (T020)
+        if not user:  # Failed login
+            if auth_login_failed_counter:  # type: ignore[attr-defined]
+                auth_login_failed_counter.add(
+                    1, {"reason": "invalid_credentials"})
             exc = HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
@@ -218,24 +255,22 @@ async def login(
         # Role mapping aligned with contract expectations (admin|operator|viewer)
         role = "admin" if getattr(user, "is_admin", False) else "viewer"
 
-        # Standardized success envelope (FR-024 style) with additional contract fields
-        return {
-            "status": "success",
-            "data": {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "user": {
-                    "id": str(user.id),
-                    "username": user.username,
-                    "full_name": user.full_name,
-                    "role": role,
-                    # Field not yet in DB schema; default False for now (assumption)
-                    "gst_preference": False,
-                },
+        # Emit successful login counter
+        if auth_login_counter:  # type: ignore[attr-defined]
+            auth_login_counter.add(1, {"role": role})
+
+        return _success({
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user": {
+                "id": str(user.id),
+                "username": user.username,
+                "full_name": user.full_name,
+                "role": role,
+                "gst_preference": False,
             },
-            "timestamp": time.time(),
-        }
+        })
 
 
 @router.get("/me", response_model=UserResponse)
@@ -244,7 +279,7 @@ async def get_current_user_profile(
 ):
     """Get current user profile."""
     with trace_operation("auth_get_profile"):
-        return UserResponse(
+        user_payload = UserResponse(
             id=current_user.id,
             username=current_user.username,
             email=current_user.email,
@@ -254,10 +289,12 @@ async def get_current_user_profile(
                 current_user, "is_admin", False) else "user",
             created_at=current_user.created_at
         )
+        return _success(user_payload.model_dump())
 
 
 @router.post("/logout")
 async def logout():
     """Logout endpoint (client should remove token)."""
     with trace_operation("auth_logout"):
-        return {"message": "Successfully logged out"}
+        # Stateless JWT logout: client just discards token; placeholder for future blacklist if needed
+        return _success({"message": "Successfully logged out"})

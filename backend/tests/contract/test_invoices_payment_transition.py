@@ -18,15 +18,21 @@ async def test_invoice_partial_then_paid(auth_client: AsyncClient):
     }
     resp = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert resp.status_code == status.HTTP_201_CREATED, resp.text
-    invoice = resp.json()
+    env = resp.json()
+    assert env.get("status") == "success"
+    invoice = env["data"]
     invoice_id = invoice["id"]
 
     # Partial payment
     part = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"paid_amount": 500})
     assert part.status_code == 200, part.text
-    assert part.json()["payment_status"].lower() == "partial"
+    part_env = part.json()
+    assert part_env.get("status") == "success"
+    assert part_env["data"]["payment_status"].lower() == "partial"
 
     # Full payment
     full = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json={"paid_amount": invoice["total_amount"]})
     assert full.status_code == 200, full.text
-    assert full.json()["payment_status"].lower() == "paid"
+    full_env = full.json()
+    assert full_env.get("status") == "success"
+    assert full_env["data"]["payment_status"].lower() == "paid"

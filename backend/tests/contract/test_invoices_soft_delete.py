@@ -28,7 +28,9 @@ async def test_invoice_soft_delete_contract(auth_client: AsyncClient):
         },
     )
     assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.text
-    invoice = create_resp.json()
+    create_env = create_resp.json()
+    assert create_env.get("status") == "success"
+    invoice = create_env["data"]
     invoice_id = invoice["id"]
 
     # 2. Delete
@@ -38,13 +40,18 @@ async def test_invoice_soft_delete_contract(auth_client: AsyncClient):
     # 3. List should NOT contain
     list_resp = await auth_client.get("/api/v1/invoices/")
     assert list_resp.status_code == 200, list_resp.text
-    listing = list_resp.json()
-    assert all(inv["id"] != invoice_id for inv in listing), "Soft-deleted invoice appeared in list"\
+    listing_env = list_resp.json()
+    assert listing_env.get("status") == "success"
+    listing = listing_env["data"]
+    assert all(
+        inv["id"] != invoice_id for inv in listing), "Soft-deleted invoice appeared in list"
 
     # 4. Detail still accessible & is_deleted True
     detail_resp = await auth_client.get(f"/api/v1/invoices/{invoice_id}")
     assert detail_resp.status_code == 200, detail_resp.text
-    detail = detail_resp.json()
+    detail_env = detail_resp.json()
+    assert detail_env.get("status") == "success"
+    detail = detail_env["data"]
     assert detail["id"] == invoice_id
     # is_deleted surfaced by helper mapping
     assert detail.get("is_deleted") is True

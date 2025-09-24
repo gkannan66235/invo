@@ -1,7 +1,13 @@
-"""Invoice router providing basic CRUD operations."""
+"""Invoice router providing basic CRUD operations.
+
+Phase 3 Adjustments (Tasks T019, T021, T028):
+ - Layering note: this router will delegate to a forthcoming service layer (services/invoice_service.py)
+ - Standardized error codes using utilities (INVOICE_NOT_FOUND replaces generic NOT_FOUND for domain clarity)
+ - Metrics emission (create/update/delete counters) per observability plan (Section 9) & T028
+"""
 from datetime import datetime
 from uuid import uuid4
-from typing import List, Optional, Union
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,13 +15,39 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config.database import get_async_db_dependency
-from ..models.database import Invoice, Customer, PaymentStatus, GSTTreatment
-from ..utils.errors import ERROR_CODES, OverpayNotAllowed
-from ..config.settings import get_default_gst_rate
+try:  # Prefer src.* imports; fallback adds backend dir to path
+    from src.config.database import get_async_db_dependency  # type: ignore
+    from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment  # type: ignore
+    from src.utils.errors import ERROR_CODES, OverpayNotAllowed  # type: ignore
+    from src.config.settings import get_default_gst_rate  # type: ignore
+    from src.config.observability import (  # type: ignore
+        invoice_create_counter,
+        invoice_update_counter,
+        invoice_delete_counter,
+    )
+except ImportError:
+    import sys
+    from pathlib import Path
+    backend_dir = Path(__file__).resolve().parents[3]
+    if str(backend_dir) not in sys.path:
+        sys.path.append(str(backend_dir))
+    from src.config.database import get_async_db_dependency  # type: ignore
+    from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment  # type: ignore
+    from src.utils.errors import ERROR_CODES, OverpayNotAllowed  # type: ignore
+    from src.config.settings import get_default_gst_rate  # type: ignore
+    from src.config.observability import (  # type: ignore
+        invoice_create_counter,
+        invoice_update_counter,
+        invoice_delete_counter,
+    )
 from .auth import get_current_user, User
 
 router = APIRouter()
+
+
+def _success(data, **meta):  # lightweight envelope helper
+    import time as _time
+    return {"status": "success", "data": data, "meta": meta or None, "timestamp": _time.time()}
 
 # Pydantic schemas
 
@@ -79,9 +111,9 @@ class InvoiceCreate(BaseModel):
             'name': 'customer_name',
             'phone': 'customer_phone'
         }
-        for src, dest in key_map.items():
-            if src in values and dest not in values:
-                values[dest] = values[src]
+        for src_key, dest_key in key_map.items():
+            if src_key in values and dest_key not in values:
+                values[dest_key] = values[src_key]
 
         # Coerce numeric fields
         for num_field in ['amount', 'gst_rate', 'subtotal', 'gst_amount', 'total_amount', 'discount_amount']:
@@ -92,9 +124,9 @@ class InvoiceCreate(BaseModel):
                     else:
                         try:
                             values[num_field] = float(values[num_field])
-                        except ValueError:
+                        except ValueError as exc:
                             raise ValueError(
-                                f"Field '{num_field}' must be a number")
+                                f"Field '{num_field}' must be a number") from exc
 
         # Normalize due_date
         if 'due_date' in values and isinstance(values['due_date'], str):
@@ -102,12 +134,11 @@ class InvoiceCreate(BaseModel):
                 values['due_date'] = None
             else:
                 try:
-                    # Attempt parse (accept date or datetime iso)
                     values['due_date'] = datetime.fromisoformat(
                         values['due_date'])
-                except ValueError:
+                except ValueError as exc:
                     raise ValueError(
-                        "Field 'due_date' must be ISO 8601 date/datetime string")
+                        "Field 'due_date' must be ISO 8601 date/datetime string") from exc
 
         return values
 
@@ -161,9 +192,9 @@ class InvoiceUpdate(BaseModel):
             'name': 'customer_name',
             'phone': 'customer_phone'
         }
-        for src, dest in key_map.items():
-            if src in values and dest not in values:
-                values[dest] = values[src]
+        for src_key, dest_key in key_map.items():
+            if src_key in values and dest_key not in values:
+                values[dest_key] = values[src_key]
 
         # Normalize empty string to None for selected fields
         for field in [
@@ -180,9 +211,9 @@ class InvoiceUpdate(BaseModel):
                 try:
                     values['due_date'] = datetime.fromisoformat(
                         values['due_date'])
-                except ValueError:
+                except ValueError as exc:
                     raise ValueError(
-                        "Field 'due_date' must be ISO 8601 date/datetime string")
+                        "Field 'due_date' must be ISO 8601 date/datetime string") from exc
 
         return values
 
@@ -194,8 +225,9 @@ class InvoiceUpdate(BaseModel):
             if field in values and isinstance(values[field], str) and values[field].strip() != "":
                 try:
                     values[field] = float(values[field])
-                except ValueError:
-                    raise ValueError(f"Field '{field}' must be a number")
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Field '{field}' must be a number") from exc
             if field in values and values[field] == "":  # empty string -> None
                 values[field] = None
         return values
@@ -273,8 +305,8 @@ def _to_frontend_invoice(invoice: Invoice, customer: Optional[Customer] = None) 
 @router.get('/')
 async def list_invoices(
     db: AsyncSession = Depends(get_async_db_dependency),
-    current_user: User = Depends(get_current_user)
-):
+    _current_user: User = Depends(get_current_user)
+):  # _current_user used only for auth gating
     # Exclude soft-deleted invoices (T027)
     result = await db.execute(
         select(Invoice)
@@ -292,15 +324,18 @@ async def list_invoices(
         for c in cust_result.scalars().all():
             customers_map[c.id] = c
 
-    return [_to_frontend_invoice(inv, customers_map.get(inv.customer_id)) for inv in invoices]
+    return _success([
+        _to_frontend_invoice(inv, customers_map.get(inv.customer_id))
+        for inv in invoices
+    ], total=len(invoices))
 
 
 @router.post('/', status_code=status.HTTP_201_CREATED)
 async def create_invoice(
     payload: InvoiceCreate,
     db: AsyncSession = Depends(get_async_db_dependency),
-    current_user: User = Depends(get_current_user)
-):
+    _current_user: User = Depends(get_current_user)
+):  # _current_user used only for auth gating
     # Determine creation path
     customer: Optional[Customer] = None
     if not payload.customer_id:
@@ -360,6 +395,9 @@ async def create_invoice(
         total_amount = float(payload.total_amount or (subtotal + gst_amount))
         place_of_supply = payload.place_of_supply or 'KA'
         notes = payload.notes
+        # Provide gst_rate for parity with frontend branch (default 0 if omitted)
+        gst_rate = float(
+            payload.gst_rate) if payload.gst_rate is not None else 0.0
 
     invoice_number = await _generate_invoice_number(db)
 
@@ -385,27 +423,31 @@ async def create_invoice(
     db.add(invoice)
     await db.commit()
     await db.refresh(invoice)
-    return _to_frontend_invoice(invoice, customer)
+    # Emit creation metric (if instrumentation active)
+    if invoice_create_counter:  # type: ignore[attr-defined]
+        invoice_create_counter.add(1, {"place_of_supply": place_of_supply})
+    return _success(_to_frontend_invoice(invoice, customer))
 
 
 @router.get('/{invoice_id}')
 async def get_invoice(
     invoice_id: UUID,
     db: AsyncSession = Depends(get_async_db_dependency),
-    current_user: User = Depends(get_current_user)
-):
+    _current_user: User = Depends(get_current_user)
+):  # _current_user used only for auth gating
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         exc = HTTPException(status_code=404, detail='Invoice not found')
-        setattr(exc, 'code', ERROR_CODES['not_found'])
+        setattr(exc, 'code', ERROR_CODES.get(
+            'invoice_not_found', ERROR_CODES['not_found']))
         raise exc
     # Fetch customer
     cust = None
     if invoice.customer_id:
         cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
         cust = cust_res.scalar_one_or_none()
-    return _to_frontend_invoice(invoice, cust)
+    return _success(_to_frontend_invoice(invoice, cust))
 
 
 def _apply_update(invoice: Invoice, payload: InvoiceUpdate):
@@ -482,11 +524,16 @@ async def _update_invoice_logic(
     invoice = result.scalar_one_or_none()
     if not invoice:
         exc = HTTPException(status_code=404, detail='Invoice not found')
-        setattr(exc, 'code', ERROR_CODES['not_found'])
+        setattr(exc, 'code', ERROR_CODES.get(
+            'invoice_not_found', ERROR_CODES['not_found']))
         raise exc
     _apply_update(invoice, payload)
     await db.commit()
     await db.refresh(invoice)
+    # Emit update metric
+    if invoice_update_counter:  # type: ignore[attr-defined]
+        invoice_update_counter.add(
+            1, {"payment_status": invoice.payment_status})
     cust = None
     if invoice.customer_id:
         cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
@@ -499,9 +546,10 @@ async def update_invoice(
     invoice_id: UUID,
     payload: InvoiceUpdate,
     db: AsyncSession = Depends(get_async_db_dependency),
-    current_user: User = Depends(get_current_user)
-):
-    return await _update_invoice_logic(invoice_id, payload, db)
+    _current_user: User = Depends(get_current_user)
+):  # _current_user used only for auth gating
+    updated = await _update_invoice_logic(invoice_id, payload, db)
+    return _success(updated)
 
 
 @router.put('/{invoice_id}')
@@ -509,27 +557,31 @@ async def replace_invoice(
     invoice_id: UUID,
     payload: InvoiceUpdate,  # Accept same flexible model
     db: AsyncSession = Depends(get_async_db_dependency),
-    current_user: User = Depends(get_current_user)
-):
+    _current_user: User = Depends(get_current_user)
+):  # _current_user used only for auth gating
     # Treat PUT as full update but since fields are optional, behavior mirrors PATCH unless fields supplied
-    return await _update_invoice_logic(invoice_id, payload, db)
+    updated = await _update_invoice_logic(invoice_id, payload, db)
+    return _success(updated)
 
 
 @router.delete('/{invoice_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_invoice(
     invoice_id: UUID,
     db: AsyncSession = Depends(get_async_db_dependency),
-    current_user: User = Depends(get_current_user)
-):
+    _current_user: User = Depends(get_current_user)
+):  # _current_user used only for auth gating
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
         exc = HTTPException(status_code=404, detail='Invoice not found')
-        setattr(exc, 'code', ERROR_CODES['not_found'])
+        setattr(exc, 'code', ERROR_CODES.get(
+            'invoice_not_found', ERROR_CODES['not_found']))
         raise exc
     # Soft delete (T026): mark as deleted but retain record
     if not invoice.is_deleted:
         invoice.is_deleted = True
         await db.commit()
         await db.refresh(invoice)
-    return None
+        if invoice_delete_counter:  # type: ignore[attr-defined]
+            invoice_delete_counter.add(1, {})
+    return _success(None)

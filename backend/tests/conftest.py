@@ -478,7 +478,8 @@ async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
 # Progress Percentage Output (with optional disable + per-test duration)
 # ---------------------------------------------------------------------------
 
-PROGRESS_CONFIG = None  # Global reference to pytest Config (set after collection)
+# Global reference to pytest Config (set after collection)
+PROGRESS_CONFIG = None
 PROGRESS_START_TIMES = {}  # nodeid -> float start time
 
 
@@ -499,7 +500,8 @@ def pytest_collection_finish(session):  # noqa: D401
     cfg._invo_total_tests = len(session.items)  # type: ignore[attr-defined]
     cfg._invo_completed_tests = 0  # type: ignore[attr-defined]
     cfg._invo_last_reported_pct = -1  # type: ignore[attr-defined]
-    cfg._invo_progress_enabled = not cfg.getoption("--no-progress")  # type: ignore[attr-defined]
+    cfg._invo_progress_enabled = not cfg.getoption(
+        "--no-progress")  # type: ignore[attr-defined]
     PROGRESS_CONFIG = cfg
 
 
@@ -519,7 +521,8 @@ def pytest_runtest_logreport(report):  # noqa: D401
     config = PROGRESS_CONFIG
     if config is None:
         return
-    if not getattr(config, "_invo_progress_enabled", True):  # type: ignore[attr-defined]
+    # type: ignore[attr-defined]
+    if not getattr(config, "_invo_progress_enabled", True):
         return
     total = getattr(config, "_invo_total_tests", 0)
     if not total:
@@ -530,7 +533,8 @@ def pytest_runtest_logreport(report):  # noqa: D401
     last_pct = getattr(config, "_invo_last_reported_pct", -1)
     if pct != last_pct or report.failed:
         setattr(config, "_invo_last_reported_pct", pct)
-        import sys as _sys, time as _time
+        import sys as _sys
+        import time as _time
         start = PROGRESS_START_TIMES.pop(report.nodeid, None)
         dur = f"{(_time.time() - start):.3f}s" if start else "-"
         print(
@@ -538,14 +542,16 @@ def pytest_runtest_logreport(report):  # noqa: D401
             file=_sys.stderr,
             flush=True,
         )
-        config._invo_last_progress_time = _time.time()  # type: ignore[attr-defined]
+        # type: ignore[attr-defined]
+        config._invo_last_progress_time = _time.time()
 
 
 def pytest_report_teststatus(report, config):  # noqa: D401
     """Emit heartbeat if no test finished for >30s (helps perceived 'hang')."""
     if not getattr(config, "_invo_progress_enabled", True):  # type: ignore[attr-defined]
         return
-    import time as _time, sys as _sys
+    import time as _time
+    import sys as _sys
     total = getattr(config, "_invo_total_tests", 0)
     if not total:
         return

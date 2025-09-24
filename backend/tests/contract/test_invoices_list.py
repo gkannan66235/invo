@@ -25,7 +25,9 @@ async def test_invoices_list_ordering(auth_client: AsyncClient):
 
     lst = await auth_client.get("/api/v1/invoices/")
     assert lst.status_code == 200, lst.text
-    data = lst.json()
+    body = lst.json()
+    assert body.get("status") == "success"
+    data = body.get("data")
     assert isinstance(data, list)
     # Ensure at least the two we just created are first by created_at (current code orders by created_at desc)
     created_at_values = [inv.get("created_at") for inv in data[:2]]
