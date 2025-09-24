@@ -50,26 +50,26 @@ A service center operator logs into BillingBee, creates a new service invoice fo
 
 ### Functional Requirements
 
-- **FR-001**: System MUST authenticate users via credential-based login (username and/or email + password). [NEEDS CLARIFICATION: Is email login officially supported long-term or only username?]
+- **FR-001**: System MUST authenticate users via credential-based login accepting an `identifier` (username OR email, case-insensitive match) plus `password`. Usernames MUST be unique; emails MUST be unique. Failures MUST return standardized error schema with code `AUTH_INVALID_CREDENTIALS` (no user enumeration). (Clarified.)
 - **FR-002**: System MUST issue a secure session token upon successful authentication for protected operations.
 - **FR-003**: System MUST allow creation of a service invoice with minimally: customer name, customer phone, service description, taxable amount.
 - **FR-004**: System MUST compute GST amount = round(amount \* gst_rate / 100, 2) and total = amount + GST.
-- **FR-005**: System MUST assign a unique sequential invoice number pattern including date prefix.
+- **FR-005**: System MUST assign a unique sequential invoice number with pattern `INV-{YYYYMMDD}-{NNNN}` where `YYYYMMDD` is UTC creation date and `NNNN` is zero‑padded 4‑digit daily sequence starting at `0001`. Uniqueness scope: (date, sequence) pair MUST be unique; collisions MUST retry atomically. Payloads MUST include `invoice_number`.
 - **FR-006**: System MUST reuse existing customer records when name and phone match exactly.
 - **FR-007**: System MUST allow updating invoice fields: amount, gst_rate, service description, due date, notes, paid amount, status (draft/sent/paid/cancelled).
-- **FR-008**: System MUST recalculate GST and totals whenever amount or gst_rate changes.
-- **FR-008a**: Amount and gst_rate remain editable even after partial or full payments; after any edit the system MUST recompute gst_amount, total_amount, outstanding_amount and re-derive payment_status (if paid_amount now < total_amount, downgrade status appropriately).
+- **FR-008**: System MUST recalculate GST and totals whenever amount or gst_rate changes. Amount and gst_rate remain editable even after partial or full payments; after any edit the system MUST recompute `gst_amount`, `total_amount`, `outstanding_amount` and re-derive `payment_status` (downgrade if `paid_amount` < `total_amount`). (Merged former FR-008a.)
+- **FR-008a**: (Deprecated – merged into FR-008; retained for historical references.)
 - **FR-009**: System MUST prevent paid_amount from exceeding total_amount or being negative.
 - **FR-010**: System MUST derive payment status automatically based on paid_amount vs total (pending/partial/paid) unless explicitly overridden by an allowed status control.
-- **FR-011**: System MUST show outstanding amount = total_amount - paid_amount for each invoice.
-- **FR-012**: System MUST support a `lifecycle_status` value `cancelled` as a non-destructive lifecycle marker; cancellation does NOT freeze edits or payments and cancelled invoices remain visible in standard listings (future filters may optionally exclude them).
-- **FR-013**: System MUST ignore unrecognized extra fields in invoice create/update submissions (forward compatibility).
+- **FR-011**: System MUST show `outstanding_amount = total_amount - paid_amount` (lower bound 0.00) for each invoice (create/list/detail responses). Value MUST be rounded to 2 decimal places using monetary rounding mode (see NFR-011) and never negative.
+- **FR-012**: System MUST support a `lifecycle_status` enum with at least `active`, `cancelled` (non-destructive lifecycle marker). Cancellation does NOT freeze edits or payments; cancelled invoices remain visible in standard listings. Paying a cancelled invoice MUST remain allowed.
+- **FR-013**: System MUST silently ignore (drop) unrecognized extra top-level fields in invoice create/update submissions. It MUST NOT error due to unknown fields. Ignored fields MUST NOT appear in response payload.
 - **FR-014**: System MUST normalize camelCase and snake_case invoice payload fields equivalently.
 - **FR-015**: System MUST validate required fields (customer identity + amount) for invoice creation.
 - **FR-016**: System MUST allow retrieving a list of recent invoices ordered newest first.
 - **FR-017**: System MUST provide detail view for a single invoice by id.
 - **FR-018**: System MUST soft delete invoices using an `is_deleted` boolean flag; soft-deleted invoices are excluded from standard list retrieval and still retrievable via detail view (`GET /api/v1/invoices/{id}`) with `is_deleted=true` in the payload.
-- **FR-019**: System MUST retain audit timestamps (created/updated) for invoices.
+- **FR-019**: System MUST retain audit timestamps `created_at` and `updated_at` (UTC, timezone-aware ISO8601 seconds precision). `created_at` immutable after insert; `updated_at` changes only on mutations (including soft delete). Reads MUST NOT mutate timestamps.
 - **FR-020**: System MUST ensure numeric inputs accept numeric strings where logically convertible (UX resilience).
 - **FR-021**: System MUST reject malformed date inputs for due dates with clear validation error.
 - **FR-022**: System MUST default gst_rate to the float value of environment variable `DEFAULT_GST_RATE` if set, otherwise 18.0, when omitted; returned invoice payloads MUST include the applied gst_rate.
@@ -93,10 +93,10 @@ A service center operator logs into BillingBee, creates a new service invoice fo
 - **NFR-006**: Observability - System MUST emit structured logs for invoice create/update/delete and authentication events.
 - **NFR-007**: Observability - Basic metrics MUST include invoice count, create rate, update rate, error rate, auth failures.
 - **NFR-008**: Security - Access JWT tokens MUST expire in 24 hours (no refresh token mechanism in this feature scope); post-expiry any protected endpoint access MUST return 401 with standardized error schema.
-- **NFR-009**: Security - Password handling MUST use strong one-way hashing (bcrypt or better). (Informational; no implementation detail expansion.)
+- **NFR-009**: Security - Passwords MUST be hashed with bcrypt (work factor >= 12). A security test MUST assert: (a) hash differs from plain, (b) bcrypt identifier prefix present, (c) work factor within accepted range.
 - **NFR-010**: Reliability - System MUST gracefully handle database connectivity loss with explicit error response (no silent failures).
-- **NFR-011**: Data Integrity - Tax calculations MUST round consistently using standard rounding to 2 decimal places.
-- **NFR-012**: Internationalization - Monetary fields MUST store exact numeric values (no floating precision drift beyond 2 decimals). [NEEDS CLARIFICATION: Currency multi-support needed?]
+- **NFR-011**: Data Integrity - Monetary & tax calculations MUST use HALF_UP ("round half away from zero") rounding to 2 decimal places via Decimal quantization. Boundary values (e.g., X.005) MUST follow HALF_UP. A rounding regression test MUST cover boundaries.
+- **NFR-012**: Internationalization - Monetary fields MUST store exact numeric values (no floating precision drift beyond 2 decimals) using DECIMAL/NUMERIC(12,2). Scope: single currency (INR). Multi-currency: out of scope.
 
 ## Review & Acceptance Checklist
 

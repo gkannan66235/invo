@@ -35,7 +35,7 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [ ] T013 [P] Contract test: Validation missing customer/amount returns 422 structured error (File: `backend/tests/contract/test_invoices_validation.py`).
 - [ ] T014 [P] Integration test: Reuse existing customer on duplicate create (File: `backend/tests/integration/test_customer_dedup.py`).
 - [ ] T015 [P] Integration test: Update amount & gst_rate triggers recompute (File: `backend/tests/integration/test_invoice_recompute.py`).
-- [ ] T016 [P] Integration test: Cancellation sets is_cancelled (File: `backend/tests/integration/test_invoice_cancel.py`).
+- [ ] T016 [P] Integration test: Cancellation sets `lifecycle_status=cancelled` and still allows subsequent payment (File: `backend/tests/integration/test_invoice_cancel.py`). (Maps FR-012)
 - [ ] T017 [P] Integration test: Numeric string coercion (amount, gst_rate) (File: `backend/tests/integration/test_invoice_numeric_string.py`).
 - [ ] T018 [P] Performance test: list 100 invoices <200ms p95 harness (File: `backend/tests/performance/test_invoice_perf.py`). (Depends: T005)
 
@@ -117,6 +117,11 @@ Group C (observability after T028):
 - [ ] T052 Service layer unit tests post-refactor (File: `backend/tests/unit/test_invoice_service_refactored.py`). (Depends: T037)
 - [ ] T053 Update DELETE route to perform soft delete (File: `backend/src/routers/invoices.py`). (Depends: T026)
 - [ ] T054 Metrics test: Counters increment after operations (File: `backend/tests/integration/test_metrics_counters.py`). (Depends: T028, T032; Maps NFR-007)
+
+### Phase 7: Remediation (Coverage & Clarifications)
+
+- [ ] T055 Contract test: PATCH non-existent invoice returns 404 `INVOICE_NOT_FOUND` (File: `backend/tests/contract/test_invoices_update_not_found.py`). (Maps FR-023)
+- [ ] T056 Unit test: Unknown extra fields dropped & absent in response (File: `backend/tests/unit/test_invoice_unknown_fields.py`). (Maps FR-013)
 
 ## Removed / Superseded Tasks Log
 

@@ -26,7 +26,7 @@ Existing Tables: `users`, `customers`, `invoices`.
 Planned Modifications:
 
 - Add `is_deleted BOOLEAN NOT NULL DEFAULT FALSE` to `invoices` (soft delete).
-- (Optional future) `lifecycle_status` separate from payment status if complexity grows; currently reuse payment status + `is_cancelled` flag. Spec FR-012 endorses a lifecycle marker; we will retain `is_cancelled` for now.
+- Add `lifecycle_status` enum (`active`, `cancelled`) aligning with clarified spec FR-012 (replaces earlier `is_cancelled` flag concept). Payment status remains derived independently.
   Indexes (Phase 5):
 - Composite index `(invoice_date DESC)` already implicit; add index on `(payment_status)` and `(customer_id)` if performance profiling (T041) indicates.
 
@@ -44,7 +44,7 @@ Computed Fields:
   Edits After Payments:
 - Allowed (clarification). Recompute totals and recompute payment status (downgrade if necessary).
   Cancellation:
-- `is_cancelled` informational; no operational restrictions (still editable & payable).
+- `lifecycle_status == cancelled` informational; no operational restrictions (still editable & payable).
   Soft Delete:
 - Replace hard delete with `is_deleted = TRUE` and timestamp update. Exclude in list queries. Detail returns invoice with `is_deleted` attribute.
 
@@ -152,7 +152,7 @@ Coverage Targets (NFR-003): enforce via `pytest --cov` gate (T004/T040).
 
 (Not blocking MVP but tracked for future clarification.)
 
-- FR-001: Long-term identity strategy (email vs username) – default: allow both.
+- (Resolved) FR-001: Login accepts `identifier` (username OR email) + password; uniqueness enforced separately.
 - FR-024: Final canonical error codes list expansion (currently minimal set).
 - Roles / permissions model (deferred).
 - Multi-currency & currency formatting (NFR-012). Current assumption: single INR currency, store numeric decimals.
