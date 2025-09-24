@@ -18,6 +18,7 @@ from sqlalchemy import select
 from ..config.database import get_async_db_dependency
 from ..models.database import User
 from ..config.observability import trace_operation
+from ..utils.errors import ERROR_CODES
 
 # Configuration
 SECRET_KEY = "your-secret-key-change-in-production"  # Should be from environment
@@ -114,26 +115,59 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_async_db_dependency)
 ) -> User:
-    """Get current authenticated user."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    """Get current authenticated user.
 
+    Implements standardized error codes (T020):
+    - AUTH_TOKEN_EXPIRED when JWT is expired
+    - AUTH_INVALID_CREDENTIALS for any other auth failure
+    """
     try:
-        payload = jwt.decode(credentials.credentials,
-                             SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except jwt.PyJWTError:
-        raise credentials_exception
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                SECRET_KEY,
+                algorithms=[ALGORITHM]
+            )
+        except jwt.ExpiredSignatureError:
+            exc = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            setattr(exc, "code", ERROR_CODES["auth_expired"])  # type: ignore[attr-defined]
+            raise exc
+        except jwt.PyJWTError:
+            exc = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            raise exc
 
-    user = await get_user_by_username(db, username)
-    if user is None:
-        raise credentials_exception
-    return user
+        username: str | None = payload.get("sub")  # type: ignore[assignment]
+        if not username:
+            exc = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            raise exc
+
+        user = await get_user_by_username(db, username)
+        if user is None:
+            exc = HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
+            raise exc
+        return user
+    except HTTPException:
+        # Re-raise to be handled by global handler which will format envelope
+        raise
 
 # Routes
 
@@ -157,13 +191,13 @@ async def login(
                 user = candidate
 
         if not user:
+            # Standardized invalid auth code (T020)
             exc = HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            # Attach standardized code expected by contract tests
-            setattr(exc, "code", "UNAUTHORIZED")  # type: ignore[attr-defined]
+            setattr(exc, "code", ERROR_CODES["auth_invalid"])  # type: ignore[attr-defined]
             raise exc
 
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

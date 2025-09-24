@@ -15,5 +15,6 @@ async def test_login_wrong_password(async_client: AsyncClient):
     body = response.json()
     assert body.get("status") == "error"
     error = body.get("error") or {}
+    # After T020 standardization prefer AUTH_INVALID_CREDENTIALS; keep legacy UNAUTHORIZED for backward compatibility until invoices router adoption (T021)
     assert error.get("code") in {"UNAUTHORIZED", "AUTH_INVALID_CREDENTIALS"}
     assert "message" in error

@@ -76,7 +76,8 @@ class TestAuthLogin:
         error = response_data["error"]
         assert "code" in error
         assert "message" in error
-        assert error["code"] == "UNAUTHORIZED"
+        # After T020: standardized code AUTH_INVALID_CREDENTIALS (keep backward compatibility for interim)
+        assert error["code"] in {"UNAUTHORIZED", "AUTH_INVALID_CREDENTIALS"}
 
     @pytest.mark.asyncio
     async def test_login_with_missing_username(self, async_client: AsyncClient):
