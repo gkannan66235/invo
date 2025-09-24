@@ -171,7 +171,11 @@ async def db_session():  # noqa: D401
             await engine.dispose()
 
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ---------------------------------------------------------------------------
+# Password hashing context (reduced rounds for faster tests)
+# ---------------------------------------------------------------------------
+TEST_BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "4"))
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=TEST_BCRYPT_ROUNDS)
 
 # ---------------------------------------------------------------------------
 # Early migration application to avoid gevent/locust monkeypatch side-effects
@@ -328,9 +332,7 @@ def sample_order_data():
     }
 
 
-# Test markers for categorizing tests
-pytest_plugins = []
-
+# Test markers for categorizing tests (pytest_plugins removed to avoid non-top-level declaration)
 
 def _register_markers(config):  # noqa: D401
     """Internal helper to register custom markers (invoked from hook)."""
@@ -411,3 +413,110 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401, ARG001
             code="INVOICE_COV",
             message=f"Invoice router coverage {pct:.2f}% below required {threshold:.2f}% (statements={total}, missed={missed})"
         )
+
+
+# ---------------------------------------------------------------------------
+# Optimized DB session fixture (engine reuse) - inserted above progress section
+# ---------------------------------------------------------------------------
+
+@pytest_asyncio.fixture(scope="session")
+async def _test_engine():  # noqa: D401
+    """Session-scoped async engine for Postgres tests (reused across tests)."""
+    test_db_url = os.getenv("TEST_DB_URL")
+    if not test_db_url:
+        yield None
+        return
+    async_url = test_db_url
+    if async_url.startswith("postgresql+psycopg://"):
+        async_url = async_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+    elif async_url.startswith("postgresql://"):
+        async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    engine = create_async_engine(async_url, echo=False, future=True)
+    # Warm connection
+    async with engine.begin() as conn:
+        await conn.execute(text("SELECT 1"))
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
+    """Provide per-test transactional isolation using a shared engine.
+
+    Falls back to legacy dependency path when TEST_DB_URL not set (SQLite).
+    """
+    test_db_url = os.getenv("TEST_DB_URL")
+    if not test_db_url:
+        async for session in get_async_db_dependency():  # type: ignore[func-returns-value]
+            yield session
+        return
+    engine = _test_engine
+    AsyncTestSession = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False, autocommit=False)
+    async with engine.connect() as conn:  # type: ignore[union-attr]
+        outer = await conn.begin()
+        nested = await conn.begin_nested()
+        try:
+            async with AsyncTestSession(bind=conn) as session:  # type: ignore[arg-type]
+                yield session
+                await session.flush()
+        finally:
+            if nested.is_active:
+                await nested.rollback()
+            if outer.is_active:
+                await outer.rollback()
+            await conn.close()
+
+# ---------------------------------------------------------------------------
+# Progress Percentage Output
+# ---------------------------------------------------------------------------
+
+def pytest_collection_finish(session):  # noqa: D401
+    """Store total test count after collection for progress reporting."""
+    session.config._invo_total_tests = len(session.items)  # type: ignore[attr-defined]
+    session.config._invo_completed_tests = 0  # type: ignore[attr-defined]
+    session.config._invo_last_reported_pct = -1  # type: ignore[attr-defined]
+
+
+def pytest_runtest_logreport(report):  # noqa: D401
+    """Emit incremental progress lines showing percentage complete.
+
+    Runs only for the call phase. Uses stderr to avoid interfering with output capture.
+    """
+    if report.when != "call":
+        return
+    config = getattr(report, 'config', None)
+    if config is None:
+        return
+    total = getattr(config, "_invo_total_tests", None)
+    if not total:
+        return
+    completed = getattr(config, "_invo_completed_tests", 0) + 1
+    setattr(config, "_invo_completed_tests", completed)
+    pct = int(completed / total * 100)
+    last_pct = getattr(config, "_invo_last_reported_pct", -1)
+    if pct != last_pct or report.failed:
+        setattr(config, "_invo_last_reported_pct", pct)
+        import sys as _sys, time as _time
+        print(f"[progress] {completed}/{total} ({pct}%) - {report.nodeid} - {report.outcome}", file=_sys.stderr, flush=True)
+        # Record last timestamp for heartbeat
+        config._invo_last_progress_time = _time.time()  # type: ignore[attr-defined]
+
+
+def pytest_report_teststatus(report, config):  # noqa: D401
+    """Emit heartbeat if no test finished for >30s (helps when perceived 'hang')."""
+    import time as _time, sys as _sys
+    total = getattr(config, "_invo_total_tests", None)
+    if not total:
+        return
+    last = getattr(config, "_invo_last_progress_time", None)
+    now = _time.time()
+    if last is None:
+        config._invo_last_progress_time = now  # type: ignore[attr-defined]
+        return
+    if now - last > 30:  # 30s without completion -> heartbeat
+        completed = getattr(config, "_invo_completed_tests", 0)
+        pct = int(completed / total * 100) if total else 0
+        print(f"[progress-heartbeat] still running... {completed}/{total} ({pct}%)", file=_sys.stderr, flush=True)
+        config._invo_last_progress_time = now  # type: ignore[attr-defined]
