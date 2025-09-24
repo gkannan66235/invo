@@ -14,7 +14,7 @@
 1. **Clone and navigate to the project directory:**
 
    ```bash
-   cd /Users/kannan/Projects/Devops/AI/invo/invo
+   cd /Users/kannan/Projects/Devops/AI/invo
    ```
 
 2. **Build and start all services:**

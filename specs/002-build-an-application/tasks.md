@@ -26,14 +26,14 @@ Assumptions:
 
 Contract & scenario tests created before (or refactored in place). Existing implementation will cause some passes; enhance assertions (error schema, soft delete, default GST omission, token expiry) so new tests fail prior to implementation adjustments.
 
-- [ ] T007 Contract test: login success returns token & structure (File: `backend/tests/contract/test_auth_login.py`). (Depends: T001, T004)
-- [ ] T008 [P] Contract test: login failure wrong password returns 401 error schema (File: `backend/tests/contract/test_auth_login_fail.py`).
-- [ ] T009 [P] Contract test: POST /api/v1/invoices creates invoice & GST math (File: `backend/tests/contract/test_invoices_create.py`).
-- [ ] T010 [P] Contract test: PATCH /api/v1/invoices/{id} partial payment transitions status (File: `backend/tests/contract/test_invoices_payment_transition.py`).
-- [ ] T011 [P] Contract test: PATCH /api/v1/invoices/{id} overpay → 400 with error schema (File: `backend/tests/contract/test_invoices_overpay.py`).
-- [ ] T012 [P] Contract test: GET /api/v1/invoices list ordering newest first (File: `backend/tests/contract/test_invoices_list.py`).
-- [ ] T013 [P] Contract test: Validation missing customer/amount returns 422 structured error (File: `backend/tests/contract/test_invoices_validation.py`).
-- [ ] T014 [P] Integration test: Reuse existing customer on duplicate create (File: `backend/tests/integration/test_customer_dedup.py`).
+- [x] T007 Contract test: login success returns token & structure (File: `backend/tests/contract/test_auth_login.py`). (Depends: T001, T004)
+- [x] T008 [P] Contract test: login failure wrong password returns 401 error schema (File: `backend/tests/contract/test_auth_login_fail.py`).
+- [x] T009 [P] Contract test: POST /api/v1/invoices creates invoice & GST math (File: `backend/tests/contract/test_invoices_create.py`).
+- [x] T010 [P] Contract test: PATCH /api/v1/invoices/{id} partial payment transitions status (File: `backend/tests/contract/test_invoices_payment_transition.py`).
+- [x] T011 [P] Contract test: PATCH /api/v1/invoices/{id} overpay → 400 with error schema (File: `backend/tests/contract/test_invoices_overpay.py`).
+- [x] T012 [P] Contract test: GET /api/v1/invoices list ordering newest first (File: `backend/tests/contract/test_invoices_list.py`).
+- [x] T013 [P] Contract test: Validation missing customer/amount returns 422 structured error (File: `backend/tests/contract/test_invoices_validation.py`).
+- [x] T014 [P] Integration test: Reuse existing customer on duplicate create (File: `backend/tests/integration/test_customer_dedup.py`).
 - [ ] T015 [P] Integration test: Update amount & gst_rate triggers recompute (File: `backend/tests/integration/test_invoice_recompute.py`).
 - [ ] T016 [P] Integration test: Cancellation sets `lifecycle_status=cancelled` and still allows subsequent payment (File: `backend/tests/integration/test_invoice_cancel.py`). (Maps FR-012)
 - [ ] T017 [P] Integration test: Numeric string coercion (amount, gst_rate) (File: `backend/tests/integration/test_invoice_numeric_string.py`).

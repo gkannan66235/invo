@@ -1,5 +1,6 @@
 """Invoice router providing basic CRUD operations."""
 from datetime import datetime
+from uuid import uuid4
 from typing import List, Optional, Union
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.database import get_async_db_dependency
 from ..models.database import Invoice, Customer, PaymentStatus, GSTTreatment
+from ..utils.errors import ERROR_CODES, OverpayNotAllowed
 from .auth import get_current_user, User
 
 router = APIRouter()
@@ -293,8 +295,12 @@ async def create_invoice(
     if not payload.customer_id:
         # Frontend style - must have customer_name & phone & amount
         if not (payload.customer_name and payload.customer_phone and payload.amount is not None):
-            raise HTTPException(
+            # Raise validation style HTTPException with code attribute consumed by global handler
+            exc = HTTPException(
                 status_code=422, detail="Missing required customer or amount fields")
+            # annotate for handler
+            setattr(exc, 'code', ERROR_CODES['validation'])
+            raise exc
 
         # Try to find existing customer by name+phone
         existing = await db.execute(
@@ -339,6 +345,7 @@ async def create_invoice(
     invoice_number = await _generate_invoice_number(db)
 
     invoice = Invoice(
+        id=uuid4(),  # Explicit UUID to avoid relying on Postgres gen_random_uuid() in SQLite tests
         invoice_number=invoice_number,
         customer_id=customer_id,
         subtotal=subtotal,
@@ -371,7 +378,9 @@ async def get_invoice(
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
-        raise HTTPException(status_code=404, detail='Invoice not found')
+        exc = HTTPException(status_code=404, detail='Invoice not found')
+        setattr(exc, 'code', ERROR_CODES['not_found'])
+        raise exc
     # Fetch customer
     cust = None
     if invoice.customer_id:
@@ -408,7 +417,12 @@ def _apply_update(invoice: Invoice, payload: InvoiceUpdate):
     # Paid amount / payment status logic
     if payload.paid_amount is not None:
         if payload.paid_amount < 0 or payload.paid_amount > float(invoice.total_amount):
-            raise HTTPException(status_code=400, detail='Invalid paid amount')
+            # Standardized overpay error
+            domain_err = OverpayNotAllowed(
+                payload.paid_amount, float(invoice.total_amount))
+            exc = HTTPException(status_code=400, detail=domain_err.message)
+            setattr(exc, 'code', domain_err.code)
+            raise exc
         invoice.paid_amount = payload.paid_amount
         if invoice.paid_amount == invoice.total_amount:
             invoice.payment_status = PaymentStatus.PAID.value
@@ -445,7 +459,9 @@ async def _update_invoice_logic(
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
-        raise HTTPException(status_code=404, detail='Invoice not found')
+        exc = HTTPException(status_code=404, detail='Invoice not found')
+        setattr(exc, 'code', ERROR_CODES['not_found'])
+        raise exc
     _apply_update(invoice, payload)
     await db.commit()
     await db.refresh(invoice)
