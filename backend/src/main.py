@@ -9,7 +9,8 @@ from .routers.auth import router as auth_router
 from .routers.invoices import router as invoice_router
 from .routers.system import router as system_router
 try:
-    from .routers.metrics import router as metrics_router  # Prometheus metrics (T032)
+    # Prometheus metrics (T032)
+    from .routers.metrics import router as metrics_router
 except ImportError:  # pragma: no cover - router may not exist yet during partial installs
     metrics_router = None  # type: ignore
 from .routers import customers_router, inventory_router, orders_router
@@ -41,7 +42,12 @@ logger = logging.getLogger(__name__)
 
 # Import observability with fallback (single block)
 try:
-    from .config.observability import setup_observability, trace_operation, PerformanceMonitor
+    from .config.observability import (
+        setup_observability,
+        trace_operation,
+        PerformanceMonitor,
+        performance_monitor,
+    )
 except ImportError as e:  # noqa: F401
     logger.warning(
         "Observability imports failed: %s. Running without full observability.", e)
@@ -64,27 +70,32 @@ except ImportError as e:  # noqa: F401
             self.avg_response_time = 0
             self.request_count = 0
             self.error_count = 0
+
+    performance_monitor = PerformanceMonitor()  # type: ignore
 logger = logging.getLogger(__name__)
 
 
 class ResponseTimeMiddleware(BaseHTTPMiddleware):
-    """Middleware to enforce constitutional requirement of <200ms response times."""
+    """Middleware to enforce constitutional requirement of <200ms response times and record metrics."""
 
-    async def dispatch(self, request: Request, call_next):
-        """Process request and validate response time."""
+    async def dispatch(self, request: Request, call_next):  # noqa: D401
         start_time = time.time()
-
-        # Process request
         response = await call_next(request)
-
-        # Calculate response time
-        process_time = time.time() - start_time
-        response_time_ms = process_time * 1000
-
-        # Add response time header
+        duration_s = time.time() - start_time
+        response_time_ms = duration_s * 1000
         response.headers["X-Response-Time"] = f"{response_time_ms:.1f}ms"
 
-        # Log slow responses (constitutional requirement: <200ms)
+        # Emit latency metric (best effort)
+        try:
+            performance_monitor.record_request(
+                endpoint=request.url.path,
+                method=request.method,
+                duration_ms=response_time_ms,
+                status_code=getattr(response, "status_code", 0),
+            )
+        except Exception:  # pragma: no cover - metrics best-effort
+            pass
+
         if response_time_ms > 200:
             logger.warning(
                 "Constitutional violation: Response time %.1fms exceeds 200ms limit for %s %s",
@@ -92,8 +103,6 @@ class ResponseTimeMiddleware(BaseHTTPMiddleware):
                 request.method,
                 request.url.path,
             )
-
-        # Also log any response over 100ms as a warning
         elif response_time_ms > 100:
             logger.info(
                 "Slow response: %.1fms for %s %s",
@@ -101,7 +110,6 @@ class ResponseTimeMiddleware(BaseHTTPMiddleware):
                 request.method,
                 request.url.path,
             )
-
         return response
 
 
@@ -382,16 +390,17 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
     async def runtime_metrics():
         """Runtime JSON metrics (internal diagnostic view, not Prometheus format)."""
         with trace_operation("runtime_metrics"):
-            monitor = PerformanceMonitor()
             db_health = await async_database_health_check()
+            monitor = performance_monitor  # global instance accumulating request metrics
             return {
                 "status": "success",
                 "data": {
                     "database": db_health,
                     "performance": {
-                        "avg_response_time": getattr(monitor, "avg_response_time", 0),
                         "request_count": getattr(monitor, "request_count", 0),
-                        "error_count": getattr(monitor, "error_count", 0)
+                        # Average can be derived from histogram externally; expose placeholder for now
+                        "avg_response_time": getattr(monitor, "avg_response_time", 0),
+                        "error_count": getattr(monitor, "error_count", 0),
                     }
                 },
                 "timestamp": time.time()
@@ -407,7 +416,8 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
     app.include_router(orders_router, prefix="/api/v1/orders", tags=["Orders"])
     app.include_router(
         invoice_router, prefix="/api/v1/invoices", tags=["Invoices"])
-    app.include_router(system_router, prefix="/api/v1/system", tags=["System"])  # health/readiness
+    app.include_router(system_router, prefix="/api/v1/system",
+                       tags=["System"])  # health/readiness
     if metrics_router is not None:
         # Exposes /metrics (Prometheus exposition format) without API prefix
         app.include_router(metrics_router)
