@@ -10,10 +10,12 @@ __pycache__/
 venv/
 .env
 .env.*
+!.env.example
 *.egg-info/
 .eggs/
 *.egg
 pip-wheel-metadata/
+.ruff_cache/
 
 # Coverage & test
 htmlcov/
@@ -23,6 +25,8 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 .pyre/
+coverage.xml
+junit.xml
 
 # Logs & runtime
 logs/
@@ -33,6 +37,7 @@ backend/test.db
 backend/src/test.db
 backend/test.sqlite3
 *.sqlite3
+*.db-journal
 
 # Bytecode / profiling
 *.prof
@@ -59,6 +64,12 @@ npm-debug.log*
 pnpm-debug.log*
 package-lock.json
 .pnp.*
+.turbo/
+.parcel-cache/
+.eslintcache
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Build outputs / dist
 build/
@@ -66,8 +77,8 @@ dist/
 frontend/out/
 coverage/
 
-# Docker
-*.orig
+# Docker / container
+Dockerfile.*.bak
 *.bak
 
 # Cache / temp
@@ -90,9 +101,16 @@ reports/
 # Misc
 *.orig
 *.rej
+Thumbs.db
+.DS_Store
 
 # Ignore generated migrations backups (if any) except real versions
 backend/alembic/versions/*~
 
 # Prompts / analysis temp if created
 prompts/*.tmp
+
+# Local env / overrides for backend specifically
+backend/.env
+backend/.env.*
+!backend/.env.example
