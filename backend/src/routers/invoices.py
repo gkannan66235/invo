@@ -336,7 +336,9 @@ async def create_invoice(
         cust_res = await db.execute(select(Customer).where(Customer.id == customer_id))
         customer = cust_res.scalar_one_or_none()
         if not customer:
-            raise HTTPException(status_code=404, detail='Customer not found')
+            exc = HTTPException(status_code=404, detail='Customer not found')
+            setattr(exc, 'code', ERROR_CODES['not_found'])
+            raise exc
         subtotal = float(payload.subtotal or 0)
         gst_amount = float(payload.gst_amount or 0)
         total_amount = float(payload.total_amount or (subtotal + gst_amount))
@@ -503,7 +505,9 @@ async def delete_invoice(
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
-        raise HTTPException(status_code=404, detail='Invoice not found')
+        exc = HTTPException(status_code=404, detail='Invoice not found')
+        setattr(exc, 'code', ERROR_CODES['not_found'])
+        raise exc
     await db.delete(invoice)
     await db.commit()
     return None

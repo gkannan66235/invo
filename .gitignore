@@ -1,0 +1,98 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.build/
+.python-version
+.venv/
+venv/
+.env
+.env.*
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# Coverage & test
+htmlcov/
+.coverage*
+.pytest_cache/
+.tox/
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# Logs & runtime
+logs/
+*.log
+
+# SQLite / local db artifacts
+backend/test.db
+backend/src/test.db
+backend/test.sqlite3
+*.sqlite3
+
+# Bytecode / profiling
+*.prof
+.prof/
+
+# Jupyter (if any future use)
+.ipynb_checkpoints/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/.next/
+.next/
+.next-cache/
+yarn-error.log
+npm-debug.log*
+pnpm-debug.log*
+package-lock.json
+.pnp.*
+
+# Build outputs / dist
+build/
+dist/
+frontend/out/
+coverage/
+
+# Docker
+*.orig
+*.bak
+
+# Cache / temp
+.tmp/
+.tmp*/
+/tmp/
+**/tmp/
+.cache/
+**/.cache/
+
+# Env specific
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Reports
+reports/
+
+# Misc
+*.orig
+*.rej
+
+# Ignore generated migrations backups (if any) except real versions
+backend/alembic/versions/*~
+
+# Prompts / analysis temp if created
+prompts/*.tmp
