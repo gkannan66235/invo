@@ -271,6 +271,10 @@ class PerformanceMonitor:
             description="GST calculation duration in milliseconds",
             unit="ms"
         )
+        # Internal aggregates (not relying on reader state)
+        self._request_count_internal = 0
+        self._total_response_time_ms = 0.0
+        self._error_count_internal = 0
 
     def record_request(self, endpoint: str, method: str, duration_ms: float, status_code: int):
         """Record API request metrics."""
@@ -282,6 +286,9 @@ class PerformanceMonitor:
 
         self.request_duration.record(duration_ms, attributes)
         self.request_count.add(1, attributes)
+        # Update internal aggregates
+        self._request_count_internal += 1
+        self._total_response_time_ms += duration_ms
 
         # Log warning if response time exceeds constitutional requirement (200ms)
         if duration_ms > 200:
@@ -300,6 +307,24 @@ class PerformanceMonitor:
             duration_ms,
             {"calculation_type": calculation_type}
         )
+
+    def record_error(self):  # noqa: D401
+        self._error_count_internal += 1
+
+    # Convenience properties for runtime JSON endpoint
+    @property
+    def request_count_value(self) -> int:  # noqa: D401
+        return self._request_count_internal
+
+    @property
+    def avg_response_time_ms(self) -> float:  # noqa: D401
+        if self._request_count_internal == 0:
+            return 0.0
+        return self._total_response_time_ms / self._request_count_internal
+
+    @property
+    def error_count_value(self) -> int:  # noqa: D401
+        return self._error_count_internal
 
 
 # Global performance monitor instance

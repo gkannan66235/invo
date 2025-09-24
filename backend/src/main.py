@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover - router may not exist yet during partia
 from .routers import customers_router, inventory_router, orders_router
 import logging
 import time
+from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import Any  # noqa: F401
 
@@ -182,8 +183,11 @@ async def create_default_admin_user():
         logger.error("Error creating default admin user: %s", e)
 
 
+APP_START_TIME = datetime.utcnow()
+
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # FastAPI lifespan signature (app not directly used)
+async def lifespan(app: FastAPI):  # FastAPI lifespan signature (app not directly used)  # noqa: ARG001
     """Application lifespan management."""
     # Startup
     logger.info("Starting up Invoice System API...")
@@ -339,6 +343,10 @@ def setup_exception_handlers(app: FastAPI) -> None:
     async def general_exception_handler(request: Request, exc: Exception):
         """Handle unexpected exceptions."""
         logger.error("Unhandled exception: %s", exc, exc_info=True)
+        try:  # Best-effort error metric increment
+            performance_monitor.record_error()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover
+            pass
         return JSONResponse(
             status_code=500,
             content={
@@ -392,15 +400,19 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
         with trace_operation("runtime_metrics"):
             db_health = await async_database_health_check()
             monitor = performance_monitor  # global instance accumulating request metrics
+            uptime_seconds = (datetime.utcnow() - APP_START_TIME).total_seconds()
             return {
                 "status": "success",
                 "data": {
                     "database": db_health,
                     "performance": {
-                        "request_count": getattr(monitor, "request_count", 0),
-                        # Average can be derived from histogram externally; expose placeholder for now
-                        "avg_response_time": getattr(monitor, "avg_response_time", 0),
-                        "error_count": getattr(monitor, "error_count", 0),
+                        "request_count": getattr(monitor, "request_count_value", getattr(monitor, "request_count", 0)),
+                        "avg_response_time_ms": getattr(monitor, "avg_response_time_ms", getattr(monitor, "avg_response_time", 0)),
+                        "error_count": getattr(monitor, "error_count_value", getattr(monitor, "error_count", 0)),
+                        "uptime_seconds": uptime_seconds,
+                    },
+                    "service": {
+                        "version": "1.0.0"
                     }
                 },
                 "timestamp": time.time()
