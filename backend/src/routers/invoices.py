@@ -262,6 +262,7 @@ def _to_frontend_invoice(invoice: Invoice, customer: Optional[Customer] = None) 
         "gst_treatment": invoice.gst_treatment,
         "reverse_charge": invoice.reverse_charge,
         "outstanding_amount": float(invoice.outstanding_amount),
+        "is_cancelled": bool(invoice.is_cancelled),
     }
 
 
