@@ -53,7 +53,8 @@ async def test_frontend_style_invoice_creation_sequence(auth_client: AsyncClient
     # Extract the sequence (last 4 digits) and compare
     seq1 = int(inv_num1[-4:])
     seq2 = int(inv_num2[-4:])
-    assert seq2 == seq1 + 1, f"Expected sequential invoice numbers, got {inv_num1} -> {inv_num2}"
+    assert seq2 == seq1 + \
+        1, f"Expected sequential invoice numbers, got {inv_num1} -> {inv_num2}"
 
     # Sanity check GST math for second invoice
     assert data2["gst_amount"] == 36.0  # 18% of 200
