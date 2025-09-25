@@ -61,7 +61,8 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
             Invoice.invoice_date >= start_of_day)
     )
     count = int(result.scalar_one() or 0) + 1
-    return f"INV{today}{count:04d}"
+    # FR-005 format compliance: INV-YYYYMMDD-NNNN (dashes as delimiters)
+    return f"INV-{today}-{count:04d}"
 
 
 def _recompute_amounts(invoice: Invoice):
