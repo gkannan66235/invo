@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 002-build-an-application]
+  pull_request:
+    branches: [main, 002-build-an-application]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint-and-test:
+    name: Lint & Test (coverage gates)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        working-directory: backend
+        run: make lint
+
+      - name: Run tests with coverage gates
+        working-directory: backend
+        env:
+          # Ensure colored output & deterministic test flags (can add FAST_TESTS=0 explicitly)
+          PYTHONPATH: src
+        run: |
+          make test
+
+      - name: Run tests (normal mode) - smoke subset
+        working-directory: backend
+        run: |
+          # Run a small representative subset without FAST_TESTS to exercise real startup
+          pytest tests/contract/test_auth_login.py tests/test_invoices.py::test_create_invoice_minimal -q || exit 1
+
+      - name: Coverage XML (explicit) & summary
+        if: always()
+        working-directory: backend
+        run: |
+          # Pytest already generated coverage.xml via pytest.ini config. Re-generate defensively if missing.
+          if [ ! -f coverage.xml ]; then coverage xml -i || true; fi
+          coverage report -m || true
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: |
+            backend/coverage.xml
+            backend/htmlcov/
+          if-no-files-found: warn
+
+      - name: Upload pytest reports (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-artifacts-${{ matrix.python-version }}
+          path: |
+            backend/.pytest_cache
+          if-no-files-found: ignore
+
+  # Optional future job: Postgres-backed tests (left scaffolded for later enablement)
+  # postgres-tests:
+  #   name: Postgres Test Matrix (future)
+  #   runs-on: ubuntu-latest
+  #   services:
+  #     postgres:
+  #       image: postgres:16
+  #       env:
+  #         POSTGRES_USER: test
+  #         POSTGRES_PASSWORD: test
+  #         POSTGRES_DB: invo_test
+  #       ports: [ '5432:5432' ]
+  #       options: >-
+  #         --health-cmd="pg_isready -U test" --health-interval=5s --health-timeout=5s --health-retries=5
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.13'
+  #     - name: Install deps
+  #       working-directory: backend
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r requirements.txt -r requirements-dev.txt
+  #     - name: Run tests (Postgres)
+  #       working-directory: backend
+  #       env:
+  #         TEST_DB_URL: postgresql+asyncpg://test:test@localhost:5432/invo_test
+  #       run: |
+  #         make test

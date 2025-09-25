@@ -25,15 +25,37 @@ lint:
 	black --check $(SRC_DIR) tests
 	mypy $(SRC_DIR)
 
-## test: Run test suite with coverage (global >=80%, invoices router >=90%)
+## test: Run test suite with coverage (excludes performance tests by default)
 test:
-	pytest
+	FAST_TESTS=1 pytest -m "not performance"
 	# Enforce 90% coverage on invoices router (T004)
+	coverage report --fail-under=90 $(SRC_DIR)/routers/invoices.py
+
+## test-normal: Run test suite in normal (non FAST_TESTS) mode
+test-normal:
+	pytest -m "not performance"
+	coverage report --fail-under=90 $(SRC_DIR)/routers/invoices.py
+
+## test-all: Run entire test suite including performance tests
+test-all:
+	FAST_TESTS=1 pytest
 	coverage report --fail-under=90 $(SRC_DIR)/routers/invoices.py
 
 ## test-fast: Run tests in fast mode (skips OTEL setup, seeds, real auth hash) - set FAST_TESTS=1
 test-fast:
 	FAST_TESTS=1 pytest tests/unit -q -k "" --no-cov --disable-warnings
+
+## contract: Run only contract tests
+contract:
+	FAST_TESTS=1 pytest -m contract -q
+
+## integration: Run only integration tests
+integration:
+	FAST_TESTS=1 pytest -m integration -q
+
+## unit: Run only unit tests
+unit:
+	FAST_TESTS=1 pytest -m unit -q
 
 ## test-postgres: Run tests against Postgres (requires TEST_DB_URL env var)
 test-postgres:

@@ -54,7 +54,43 @@ make stamp              # stamp current head (use with caution)
 
 ## Testing
 
-Current tests use SQLite + model metadata table creation. Future enhancement: switch tests to use Postgres + migrations for closer parity.
+### Modes
+
+There are two primary test execution modes:
+
+1. FAST_TESTS=1 (default in `make test`):
+
+   - Uses a lightweight SQLite file database (`fasttests.db`).
+   - Skips expensive startup tasks (observability init, DB health check, seed routines) via a fast-path in `lifespan`.
+   - Reduces bcrypt rounds (env `BCRYPT_ROUNDS`, default 4 in tests) for faster auth hashing.
+   - Provides a shortcut auth token in `auth_client` fixture to avoid hashing/login route cost.
+
+2. Normal mode (no FAST_TESTS):
+   - Runs closer to production settings (full startup, standard bcrypt cost).
+   - Use `make test-normal` to exercise this path.
+
+### Targets
+
+Inside `backend/Makefile`:
+
+```
+make test         # fast mode, excludes performance tests
+make test-normal  # normal mode run
+make contract     # contract tests subset
+make integration  # integration tests subset
+make unit         # unit tests subset
+make test-all     # includes performance tests
+make cov-html     # generate/open HTML coverage report
+```
+
+### Fixture Stability
+
+The test suite previously experienced teardown hangs due to overlapping async DB session fixtures. This was resolved by unifying into a single `db_session` fixture providing:
+
+- Simple `AsyncSessionLocal` path for FAST_TESTS (SQLite)
+- SAVEPOINT-wrapped transaction rollback for Postgres (when `TEST_DB_URL` is set)
+
+Future Postgres-backed test runs can enable parity by exporting `TEST_DB_URL` and invoking `make test-postgres`.
 
 ## Next Improvements
 

@@ -64,13 +64,14 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 
 ### Phase 5: Quality & Polish
 
- - [x] T034 [P] Add unit tests for error utils (File: `backend/tests/unit/test_errors.py`). (Depends: T002)
- - [x] T035 [P] Add unit tests for GST calculation edge (0, high values) (File: `backend/tests/unit/test_gst_math.py`).
- - [x] T036 [P] Add unit tests for payment transitions logic (File: `backend/tests/unit/test_payment_status.py`).
- - [x] T037 [P] Refactor duplication in invoices router (extract service layer) (File: `backend/src/services/invoice_service.py`). (Depends: T021)
- - [x] T038 [P] Add service layer unit tests (File: `backend/tests/unit/test_invoice_service.py`). (Depends: T037)
- - [x] T039 [P] Documentation update: API endpoints & examples (File: `docs/api/invoices.md`). (Depends: T021)
-- [ ] T040 [P] Coverage report verification & thresholds gate CI (File: `.github/workflows/ci.yml`). (Depends: T004, tests complete)
+- [x] T034 [P] Add unit tests for error utils (File: `backend/tests/unit/test_errors.py`). (Depends: T002)
+- [x] T035 [P] Add unit tests for GST calculation edge (0, high values) (File: `backend/tests/unit/test_gst_math.py`).
+- [x] T036 [P] Add unit tests for payment transitions logic (File: `backend/tests/unit/test_payment_status.py`).
+- [x] T037 [P] Refactor duplication in invoices router (extract service layer) (File: `backend/src/services/invoice_service.py`). (Depends: T021)
+- [x] T038 [P] Add service layer unit tests (File: `backend/tests/unit/test_invoice_service.py`). (Depends: T037)
+- [x] T039 [P] Documentation update: API endpoints & examples (File: `docs/api/invoices.md`). (Depends: T021)
+- [x] T040 [P] Coverage report verification & thresholds gate CI (File: `.github/workflows/ci.yml`). (Depends: T004, tests complete)
+  - Note: Post-implementation stabilization included unifying async DB session fixtures to resolve teardown hang (no new task ID assigned; recorded for traceability).
 - [ ] T041 [P] Performance optimization pass (DB indices on invoice date, payment status) (File: `backend/alembic/versions/<new>.py`). (Depends: profiling results T018)
 - [ ] T042 [P] Accessibility checklist update for frontend forms (File: `frontend/docs/accessibility.md`).
 - [ ] T043 [P] Final constitutional compliance audit log (File: `specs/002-build-an-application/compliance-report.md`).
