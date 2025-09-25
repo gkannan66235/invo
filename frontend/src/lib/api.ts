@@ -13,25 +13,32 @@ export const api = axios.create({
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
+  (config: any) => {
     const token = Cookies.get('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error: any) => Promise.reject(error)
 );
 
-// Response interceptor to handle auth errors
+// Response interceptor: unwrap success envelope and handle auth errors
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: any) => {
+    const data = response.data;
+    if (data && typeof data === 'object' && data.status === 'success' && 'data' in data) {
+      response.data = data.data; // unwrap
+    }
+    return response;
+  },
+  (error: any) => {
     if (error.response?.status === 401) {
-      // Clear tokens and redirect to login
       Cookies.remove('access_token');
       Cookies.remove('refresh_token');
-      window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -39,13 +46,14 @@ api.interceptors.response.use(
 
 // Types
 export interface User {
-  id: number;
+  id: string; // backend returns UUID string
   username: string;
-  email: string;
-  full_name: string;
-  is_active: boolean;
-  role: string;
-  created_at: string;
+  email?: string;
+  full_name?: string;
+  is_active?: boolean;
+  role?: string;
+  created_at?: string;
+  gst_preference?: boolean;
 }
 
 export interface LoginRequest {
@@ -55,8 +63,9 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string;
   token_type: string;
+  expires_in?: number;
   user: User;
 }
 
@@ -97,7 +106,8 @@ export const authApi = {
   },
 
   getProfile: async (): Promise<User> => {
-    const response = await api.get('/api/v1/auth/profile');
+    // Correct endpoint is /me in backend
+    const response = await api.get('/api/v1/auth/me');
     return response.data;
   },
 

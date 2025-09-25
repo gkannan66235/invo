@@ -56,16 +56,19 @@ async def test_invoice_number_concurrent_creation_unique(auth_client: AsyncClien
     numbers = [r[2] for r in results]
 
     # All share same date segment (expected during single test run)
-    assert len(date_parts) == 1, f"Expected single date segment, got {date_parts}"
+    assert len(
+        date_parts) == 1, f"Expected single date segment, got {date_parts}"
 
     # Uniqueness
-    assert len(numbers) == len(set(numbers)), "Duplicate invoice numbers detected"
+    assert len(numbers) == len(
+        set(numbers)), "Duplicate invoice numbers detected"
 
     # Contiguous sequence relative to min (no gaps introduced by retry logic)
     seqs_sorted = sorted(seqs)
     base = seqs_sorted[0]
     for idx, val in enumerate(seqs_sorted):
-        assert val - base == idx, f"Non-contiguous sequence at position {idx}: {seqs_sorted}"
+        assert val - \
+            base == idx, f"Non-contiguous sequence at position {idx}: {seqs_sorted}"
 
     # Optional: ensure monotonic increase across original order (not required but informative)
     # This may fail if interleaving occurs; uniqueness + contiguity are primary guarantees.
