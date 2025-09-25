@@ -4,9 +4,7 @@ Database models for the GST Compliant Service Center Management System.
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from enum import Enum
-from typing import Optional, List
-from uuid import UUID
+from enum import Enum  # (legacy unused imports removed)
 
 from sqlalchemy import (
     Boolean, DateTime, Integer, String, Text, Numeric,
@@ -14,10 +12,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID, JSONB as PG_JSONB
 from sqlalchemy import JSON as GenericJSON
+import sqlalchemy as sa
 import os
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship, validates
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func  # retained for backward compatibility; will phase out direct usage
 
 TESTING = os.getenv("TESTING", "false").lower() == "true"
 
@@ -99,7 +98,7 @@ class User(Base):
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
                 default=_uuid_default if TESTING else None,
-                server_default=None if TESTING else func.gen_random_uuid())
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     username = Column(String(50), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -108,15 +107,14 @@ class User(Base):
     is_admin = Column(Boolean, default=False, nullable=False)
     last_login = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     roles = relationship("Role", secondary=user_roles, back_populates="users")
 
     @validates('email')
-    def validate_email(self, key, email):
+    def validate_email(self, _unused, email):
         """Validate email format."""
         import re
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -131,15 +129,14 @@ class Role(Base):
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
                 default=_uuid_default if TESTING else None,
-                server_default=None if TESTING else func.gen_random_uuid())
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text)
     permissions = Column(JSONB, default=list)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     users = relationship("User", secondary=user_roles, back_populates="roles")
@@ -151,10 +148,12 @@ class Customer(Base):
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
                 default=_uuid_default if TESTING else None,
-                server_default=None if TESTING else func.gen_random_uuid())
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     name = Column(String(100), nullable=False, index=True)
     email = Column(String(255), index=True)
     phone = Column(String(15), index=True)
+    # Normalized 10-digit mobile (no +91/91 prefix, digits only). Warning-based duplicate detection (not unique).
+    mobile_normalized = Column(String(10), index=True)
     gst_number = Column(String(15), index=True)
     pan_number = Column(String(10))
     customer_type = Column(String(20), nullable=False,
@@ -170,9 +169,8 @@ class Customer(Base):
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     orders = relationship("Order", back_populates="customer")
@@ -191,7 +189,7 @@ class Customer(Base):
     )
 
     @validates('gst_number')
-    def validate_gst_number(self, key, gst_number):
+    def validate_gst_number(self, _unused, gst_number):
         """Validate GST number format for Indian businesses."""
         if gst_number and self.customer_type == CustomerType.BUSINESS.value:
             import re
@@ -202,16 +200,21 @@ class Customer(Base):
         return gst_number
 
     @validates('phone')
-    def validate_phone(self, key, phone):
-        """Validate phone number format."""
+    def validate_phone(self, _key, phone):
+        """Validate phone number format and populate mobile_normalized."""
         if phone:
             import re
-            # Indian phone number validation
             pattern = r'^(\+91|91)?[6-9]\d{9}$'
-            cleaned = re.sub(r'[^\d+]', '', phone)
-            if not re.match(pattern, cleaned):
-                raise ValueError(f"Invalid phone number format: {phone}")
-            return cleaned
+            cleaned = re.sub(r'[^0-9]', '', phone)
+            if cleaned.startswith('91') and len(cleaned) == 12:
+                cleaned = cleaned[2:]
+            if not re.match(r'^[6-9]\d{9}$', cleaned):
+                # Accept original pattern with prefixes; this means invalid overall
+                if not re.match(pattern, phone):
+                    raise ValueError(f"Invalid phone number format: {phone}")
+            # Set normalized if not explicitly provided
+            self.mobile_normalized = cleaned if len(cleaned) == 10 else None
+            return phone
         return phone
 
 
@@ -221,7 +224,7 @@ class Supplier(Base):
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
                 default=_uuid_default if TESTING else None,
-                server_default=None if TESTING else func.gen_random_uuid())
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     name = Column(String(100), nullable=False, index=True)
     email = Column(String(255), index=True)
     phone = Column(String(15), index=True)
@@ -234,15 +237,14 @@ class Supplier(Base):
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     inventory_items = relationship("InventoryItem", back_populates="supplier")
 
     @validates('gst_number')
-    def validate_gst_number(self, key, gst_number):
+    def validate_gst_number(self, _unused, gst_number):
         """Validate GST number format."""
         if gst_number:
             import re
@@ -258,7 +260,7 @@ class InventoryItem(Base):
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
                 default=_uuid_default if TESTING else None,
-                server_default=None if TESTING else func.gen_random_uuid())
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     product_code = Column(String(50), unique=True, nullable=False, index=True)
     description = Column(Text, nullable=False)
     # Harmonized System of Nomenclature
@@ -290,9 +292,8 @@ class InventoryItem(Base):
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     supplier = relationship("Supplier", back_populates="inventory_items")
@@ -321,7 +322,7 @@ class InventoryItem(Base):
         return self.current_stock <= self.minimum_stock_level
 
     @validates('hsn_code')
-    def validate_hsn_code(self, key, hsn_code):
+    def validate_hsn_code(self, _unused, hsn_code):
         """Validate HSN code format."""
         if hsn_code:
             import re
@@ -351,7 +352,7 @@ class Order(Base):
 
     # Order details
     order_date = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
     expected_delivery_date = Column(DateTime(timezone=True))
     actual_delivery_date = Column(DateTime(timezone=True))
 
@@ -376,9 +377,8 @@ class Order(Base):
 
     # Status and metadata
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
     created_by = Column(PostgresUUID(as_uuid=True), ForeignKey('users.id'))
 
     # Relationships
@@ -404,7 +404,6 @@ class Order(Base):
 
     def generate_order_number(self) -> str:
         """Generate unique order number based on type and date."""
-        from datetime import datetime
         prefix = {
             OrderType.SALE.value: "SO",
             OrderType.PURCHASE.value: "PO",
@@ -420,7 +419,7 @@ class OrderItem(Base):
     __tablename__ = 'order_items'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                server_default=sa.text('gen_random_uuid()'))
     order_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
         'orders.id'), nullable=False, index=True)
     inventory_item_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
@@ -464,7 +463,7 @@ class Invoice(Base):
     __tablename__ = 'invoices'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=func.gen_random_uuid())
+                server_default=sa.text('gen_random_uuid()'))
     invoice_number = Column(String(50), unique=True,
                             nullable=False, index=True)
     order_id = Column(PostgresUUID(as_uuid=True),
@@ -474,7 +473,7 @@ class Invoice(Base):
 
     # Invoice details
     invoice_date = Column(DateTime(timezone=True),
-                          server_default=func.now(), nullable=False)
+                          server_default=sa.text('now()'), nullable=False)
     due_date = Column(DateTime(timezone=True))
 
     # Amounts
@@ -486,6 +485,10 @@ class Invoice(Base):
     # Newly persisted fields
     gst_rate = Column(Numeric(5, 2))  # Percentage (e.g. 18.00)
     service_type = Column(String(100))
+    # Snapshot fields (added by feature migration). Nullable for legacy rows; new rows must populate.
+    branding_snapshot = Column(JSONB, nullable=True)
+    gst_rate_snapshot = Column(Numeric(5, 2), nullable=True)
+    settings_snapshot = Column(JSONB, nullable=True)
 
     # GST compliance
     place_of_supply = Column(String(50), nullable=False)
@@ -505,13 +508,14 @@ class Invoice(Base):
     # Soft delete flag (T026)
     is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(
-    ), onupdate=func.now(), nullable=False)
+                        server_default=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     order = relationship("Order", back_populates="invoices")
     customer = relationship("Customer", back_populates="invoices")
+    lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
+    downloads = relationship("InvoiceDownloadAudit", back_populates="invoice", cascade="all, delete-orphan")
 
     # Constraints
     __table_args__ = (
@@ -546,3 +550,47 @@ Index('idx_users_username_active', User.username, User.is_active)
 Index('idx_customers_name_active', Customer.name, Customer.is_active)
 Index('idx_inventory_product_code', InventoryItem.product_code)
 Index('idx_orders_status_date', Order.status, Order.order_date)
+Index('idx_customer_mobile', Customer.mobile_normalized)
+Index('idx_invoice_customer', Invoice.customer_id)
+
+
+class InvoiceLine(Base):
+    """Invoice line item snapshot model (distinct from OrderItem)."""
+    __tablename__ = 'invoice_lines'
+
+    id = Column(PostgresUUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()'))
+    invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey('invoices.id', ondelete='CASCADE'), nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False, default=1)
+    unit_price = Column(Numeric(12, 2), nullable=False)
+    line_total = Column(Numeric(14, 2), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), nullable=False)
+
+    invoice = relationship("Invoice", back_populates="lines")
+
+    __table_args__ = (
+        CheckConstraint('quantity > 0', name='check_invoice_line_qty_positive'),
+        CheckConstraint('unit_price >= 0', name='check_invoice_line_unit_price_positive'),
+        CheckConstraint('line_total >= 0', name='check_invoice_line_total_positive'),
+        Index('idx_invoice_lines_invoice_id', 'invoice_id'),
+    )
+
+
+class InvoiceDownloadAudit(Base):
+    """Audit log for invoice PDF or print downloads."""
+    __tablename__ = 'invoice_download_audit'
+
+    id = Column(PostgresUUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()'))
+    invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey('invoices.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(PostgresUUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    action = Column(String(10), nullable=False)  # 'print' or 'pdf'
+    created_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), nullable=False)
+
+    invoice = relationship("Invoice", back_populates="downloads")
+    user = relationship("User")
+
+    __table_args__ = (
+        CheckConstraint("action IN ('print','pdf')", name='ck_invoice_download_action_valid'),
+        Index('idx_audit_invoice', 'invoice_id'),
+        Index('idx_audit_user', 'user_id'),
+    )
