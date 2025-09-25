@@ -112,7 +112,7 @@ Group C (observability after T028):
 - [x] T045 Contract + integration tests: Soft delete hides from list but detail accessible (File: `backend/tests/contract/test_invoices_soft_delete.py`, `backend/tests/integration/test_invoices_soft_delete_flow.py`). (Depends: T026/T027; Maps FR-018)
 - [x] T046 Contract test: Omitted gst_rate applies DEFAULT_GST_RATE env (File: `backend/tests/contract/test_invoices_default_gst.py`). (Maps FR-022)
 - [x] T047 Contract test: Malformed due_date rejected with VALIDATION_ERROR (File: `backend/tests/contract/test_invoices_due_date_validation.py`). (Maps FR-021)
-- [ ] T048 Contract test: Expired JWT returns 401 AUTH_TOKEN_EXPIRED (File: `backend/tests/contract/test_auth_token_expired.py`). (Maps NFR-008)
+- [x] T048 Contract test: Expired JWT returns 401 AUTH_TOKEN_EXPIRED (File: `backend/tests/contract/test_auth_token_expired.py`). (Maps NFR-008)
 - [ ] T049 Unit test: Payment status downgrade after amount/gst edit (File: `backend/tests/unit/test_payment_status_downgrade.py`). (Maps FR-008)
 - [ ] T050 Unit test: Normalization of camelCase & numeric strings (File: `backend/tests/unit/test_invoice_normalization.py`). (Maps FR-013/FR-014/FR-020)
 - [ ] T051 Integration test: Simulated DB failure returns standardized DB_ERROR (File: `backend/tests/integration/test_db_failure_resilience.py`). (Maps NFR-010)
