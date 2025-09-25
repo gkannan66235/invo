@@ -133,7 +133,7 @@ Group C (observability after T028):
 - [ ] T059 Performance test: invoice creation p95 <300ms (File: `backend/tests/performance/test_invoice_creation_perf.py`). (Maps NFR-002)
 - [ ] T060 Security test: bcrypt hash cost factor >=12 (File: `backend/tests/unit/test_password_hash_cost.py`). (Maps NFR-009)
 - [ ] T061 Unit test: Monetary rounding HALF_UP edge cases (.005, .004, large values) (File: `backend/tests/unit/test_rounding.py`). (Maps NFR-011)
-- [ ] T062 Concurrency test: Parallel invoice creation preserves uniqueness (File: `backend/tests/integration/test_invoice_number_race.py`). (Maps FR-005, NFR-002)
+- [x] T062 Concurrency test: Parallel invoice creation preserves uniqueness (File: `backend/tests/integration/test_invoice_number_race.py`). (Maps FR-005, NFR-002)
 - [ ] T063 Unit test: JWT TTL boundary (token valid just before 24h, invalid after) (File: `backend/tests/unit/test_jwt_ttl.py`). (Maps NFR-008)
 - [ ] T064 Metrics audit test: Counter & labels naming consistency (File: `backend/tests/unit/test_metrics_naming.py`). (Maps NFR-007)
 - [ ] T065 Accessibility test: Keyboard-only navigation & ARIA labels invoice form (File: `frontend/tests/a11y/test_invoice_form_accessibility.ts`). (Maps A11Y)

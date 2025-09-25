@@ -124,7 +124,8 @@ async def create_invoice_service(
             raise CustomerNotFound("Customer not found")
         subtotal = float(payload.get("subtotal") or 0)
         gst_amount = float(payload.get("gst_amount") or 0)
-        total_amount = float(payload.get("total_amount") or (subtotal + gst_amount))
+        total_amount = float(payload.get("total_amount")
+                             or (subtotal + gst_amount))
         place_of_supply = payload.get("place_of_supply") or "KA"
         notes = payload.get("notes")
         gst_rate = float(payload.get("gst_rate") or 0.0)
@@ -150,7 +151,8 @@ async def create_invoice_service(
                 gst_rate=gst_rate,
                 service_type=payload.get("service_type"),
                 place_of_supply=place_of_supply,
-                gst_treatment=payload.get("gst_treatment") or GSTTreatment.TAXABLE.value,
+                gst_treatment=payload.get(
+                    "gst_treatment") or GSTTreatment.TAXABLE.value,
                 reverse_charge=payload.get("reverse_charge") or False,
                 due_date=payload.get("due_date"),
                 notes=notes,
@@ -172,7 +174,8 @@ async def create_invoice_service(
             raise e
     if last_err:  # defensive: should not reach due to return/raise inside loop
         raise last_err
-    raise RuntimeError("Failed to create invoice after retries (unexpected fallthrough)")
+    raise RuntimeError(
+        "Failed to create invoice after retries (unexpected fallthrough)")
 
 
 async def get_invoice_service(db: AsyncSession, invoice_id: UUID) -> Tuple[Invoice, Optional[Customer]]:
