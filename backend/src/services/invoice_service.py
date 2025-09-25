@@ -69,8 +69,7 @@ def _recompute_amounts(invoice: Invoice):
     rate = float(invoice.gst_rate or 0)
     invoice.gst_amount = round(base_amount * rate / 100, 2)
     invoice.total_amount = round(base_amount + invoice.gst_amount, 2)
-    invoice.outstanding_amount = float(
-        invoice.total_amount) - float(invoice.paid_amount or 0)
+    # outstanding_amount is a computed property on the model; no assignment needed
 
 
 async def create_invoice_service(
@@ -184,6 +183,19 @@ def _apply_update(invoice: Invoice, payload: Dict[str, Any]):
         invoice.gst_rate = 0.0
     if payload.get("gst_rate") is not None or payload.get("amount") is not None:
         _recompute_amounts(invoice)
+        # If paid_amount not explicitly updated, ensure consistency of payment_status vs new totals
+        if payload.get("paid_amount") is None:
+            # Clamp overpay scenario introduced by reducing total below existing paid_amount
+            if invoice.paid_amount is not None and float(invoice.paid_amount) > float(invoice.total_amount):
+                invoice.paid_amount = invoice.total_amount
+            paid_val = float(invoice.paid_amount or 0)
+            total_val = float(invoice.total_amount)
+            if paid_val == 0:
+                invoice.payment_status = PaymentStatus.PENDING.value
+            elif abs(total_val - paid_val) < 0.0005:
+                invoice.payment_status = PaymentStatus.PAID.value
+            elif paid_val < total_val:
+                invoice.payment_status = PaymentStatus.PARTIAL.value
     # Payments
     if payload.get("paid_amount") is not None:
         paid = float(payload.get("paid_amount"))
