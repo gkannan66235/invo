@@ -45,7 +45,8 @@ class DatabaseConfig:
                 return test_db_url
             # Fast test path: in-memory shared SQLite (skips disk I/O). Requires URI mode.
             if os.getenv("FAST_TESTS") == "1":
-                return "sqlite:///file:fasttests?mode=memory&cache=shared&uri=true"
+                # Use file-based DB to avoid shared in-memory locking quirks that can cause hangs in aiosqlite
+                return "sqlite:///./fasttests.db"
             # Fallback: lightweight SQLite for local quick tests
             return "sqlite:///./test.db"
         url = os.getenv("DATABASE_URL")
@@ -72,7 +73,8 @@ class DatabaseConfig:
                     return test_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
                 return test_db_url
             if os.getenv("FAST_TESTS") == "1":
-                return "sqlite+aiosqlite:///file:fasttests?mode=memory&cache=shared&uri=true"
+                # File-based variant to ensure stable connection lifecycle during large test suite runs
+                return "sqlite+aiosqlite:///./fasttests.db"
             return "sqlite+aiosqlite:///./test.db"
         url = os.getenv("ASYNC_DATABASE_URL")
         if not url:

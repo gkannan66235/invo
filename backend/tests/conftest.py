@@ -122,53 +122,8 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
  # (Removed legacy auth_headers fixture; use auth_client fixture instead)
 
 
-@pytest_asyncio.fixture
-async def db_session():  # noqa: D401
-    """Async DB session with per-test transactional isolation when Postgres used.
-
-    If TEST_DB_URL defined: begin a transaction + SAVEPOINT; rollback after test.
-    Else: fall back to simple dependency-provided session (SQLite legacy mode).
-    """
-    test_db_url = os.getenv("TEST_DB_URL")
-    if not test_db_url:
-        # Legacy path
-        async for session in get_async_db_dependency():
-            yield session
-        return
-
-    # Build async engine separate from global one to ensure proper lifecycle under tests
-    async_url = test_db_url
-    if async_url.startswith("postgresql+psycopg://"):
-        async_url = async_url.replace(
-            "postgresql+psycopg://", "postgresql+asyncpg://", 1)
-    elif async_url.startswith("postgresql://"):
-        async_url = async_url.replace(
-            "postgresql://", "postgresql+asyncpg://", 1)
-
-    engine = create_async_engine(async_url, echo=False, future=True)
-    AsyncTestSession = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False, autocommit=False)
-
-    async with engine.begin() as conn:
-        # (Tables already migrated) Ensure search_path / pragmas if needed
-        await conn.execute(text("SELECT 1"))
-
-    async with engine.connect() as conn:
-        trans = await conn.begin()
-        nested = await conn.begin_nested()
-        try:
-            # type: ignore[arg-type]
-            async with AsyncTestSession(bind=conn) as session:
-                yield session
-                await session.flush()
-        finally:
-            # Roll back nested and outer transaction to revert all changes
-            if nested.is_active:
-                await nested.rollback()
-            if trans.is_active:
-                await trans.rollback()
-            await conn.close()
-            await engine.dispose()
+# NOTE: Earlier db_session fixture removed in favor of single unified implementation below to
+# avoid nested generator/close interactions that caused hangs & IllegalStateChange errors.
 
 
 # ---------------------------------------------------------------------------
@@ -458,16 +413,30 @@ async def _test_engine():  # noqa: D401
 
 @pytest_asyncio.fixture
 async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
-    """Provide per-test transactional isolation using a shared engine.
+    """Unified async DB session fixture.
 
-    Falls back to legacy dependency path when TEST_DB_URL not set (SQLite).
+    FAST_TESTS / no TEST_DB_URL:
+        - Simple session from global AsyncSessionLocal (file-based SQLite) without nested generators
+    TEST_DB_URL set (Postgres path):
+        - Transaction + SAVEPOINT for isolation, rollback on teardown
     """
     test_db_url = os.getenv("TEST_DB_URL")
-    if not test_db_url:
-        # type: ignore[func-returns-value]
-        async for session in get_async_db_dependency():
-            yield session
+    fast_mode = os.getenv("FAST_TESTS") == "1"
+    if not test_db_url:  # SQLite / fast path
+        # local import to avoid circulars
+        from src.config.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:  # noqa: SIM117
+            try:
+                yield session
+            finally:
+                # Rollback any open transaction (best-effort)
+                try:
+                    await session.rollback()
+                except Exception:  # noqa: BLE001
+                    pass
         return
+
+    # Postgres path with shared engine for performance
     engine = _test_engine
     AsyncTestSession = async_sessionmaker(
         bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False, autocommit=False)
@@ -475,16 +444,25 @@ async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
         outer = await conn.begin()
         nested = await conn.begin_nested()
         try:
-            # type: ignore[arg-type]
             async with AsyncTestSession(bind=conn) as session:
                 yield session
-                await session.flush()
+                # Flush but avoid commit (rollback below)
+                try:
+                    await session.flush()
+                except Exception:  # noqa: BLE001
+                    pass
         finally:
-            if nested.is_active:
-                await nested.rollback()
-            if outer.is_active:
-                await outer.rollback()
-            await conn.close()
+            # Rollback in reverse order; ignore errors (teardown phase resilience)
+            for txn in (nested, outer):
+                try:
+                    if txn.is_active:
+                        await txn.rollback()
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                await conn.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 # ---------------------------------------------------------------------------
 # Progress Percentage Output (with optional disable + per-test duration)

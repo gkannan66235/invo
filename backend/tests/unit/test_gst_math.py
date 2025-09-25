@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from src.main import app
 
+
 @pytest.mark.asyncio
 async def test_gst_default_applied_when_omitted(auth_client: AsyncClient):
     payload = {
@@ -21,6 +22,7 @@ async def test_gst_default_applied_when_omitted(auth_client: AsyncClient):
     assert inv["gst_rate"] == 18
     assert inv["gst_amount"] == 180
     assert inv["total_amount"] == 1180
+
 
 @pytest.mark.asyncio
 async def test_gst_math_high_value(auth_client: AsyncClient):

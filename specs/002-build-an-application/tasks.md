@@ -72,7 +72,7 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [x] T039 [P] Documentation update: API endpoints & examples (File: `docs/api/invoices.md`). (Depends: T021)
 - [x] T040 [P] Coverage report verification & thresholds gate CI (File: `.github/workflows/ci.yml`). (Depends: T004, tests complete)
   - Note: Post-implementation stabilization included unifying async DB session fixtures to resolve teardown hang (no new task ID assigned; recorded for traceability).
-- [ ] T041 [P] Performance optimization pass (DB indices on invoice date, payment status) (File: `backend/alembic/versions/<new>.py`). (Depends: profiling results T018)
+- [x] T041 [P] Performance optimization pass (DB indices on invoice date, payment status) (File: `backend/alembic/versions/20250925_0003_add_perf_indexes.py`). (Depends: profiling results T018) # Added partial & date indexes + COUNT optimization.
 - [ ] T042 [P] Accessibility checklist update for frontend forms (File: `frontend/docs/accessibility.md`).
 - [ ] T043 [P] Final constitutional compliance audit log (File: `specs/002-build-an-application/compliance-report.md`).
 

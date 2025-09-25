@@ -29,7 +29,8 @@ async def test_create_invoice_service_basic(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_create_invoice_service_validation(db_session: AsyncSession):
     with pytest.raises(ValidationError):
-        await create_invoice_service(db_session, {"customer_name": "X"})  # missing phone & amount
+        # missing phone & amount
+        await create_invoice_service(db_session, {"customer_name": "X"})
 
 
 @pytest.mark.asyncio

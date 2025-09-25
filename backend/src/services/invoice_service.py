@@ -15,7 +15,7 @@ from typing import Optional, Tuple, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, UTC
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment
@@ -27,7 +27,8 @@ from src.config.settings import get_default_gst_rate
 
 
 class InvoiceNotFound(Exception):
-    code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])  # type: ignore[index]
+    # type: ignore[index]
+    code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])
     pass
 
 
@@ -54,8 +55,12 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
     now_utc = datetime.now(UTC)
     today = now_utc.strftime('%Y%m%d')
     start_of_day = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-    result = await db.execute(select(Invoice).where(Invoice.invoice_date >= start_of_day))
-    count = len(result.scalars().all()) + 1
+    # Use COUNT aggregate instead of pulling all rows to reduce memory + network overhead.
+    result = await db.execute(
+        select(func.count(Invoice.id)).where(
+            Invoice.invoice_date >= start_of_day)
+    )
+    count = int(result.scalar_one() or 0) + 1
     return f"INV{today}{count:04d}"
 
 
@@ -64,7 +69,8 @@ def _recompute_amounts(invoice: Invoice):
     rate = float(invoice.gst_rate or 0)
     invoice.gst_amount = round(base_amount * rate / 100, 2)
     invoice.total_amount = round(base_amount + invoice.gst_amount, 2)
-    invoice.outstanding_amount = float(invoice.total_amount) - float(invoice.paid_amount or 0)
+    invoice.outstanding_amount = float(
+        invoice.total_amount) - float(invoice.paid_amount or 0)
 
 
 async def create_invoice_service(
@@ -116,7 +122,8 @@ async def create_invoice_service(
             raise CustomerNotFound("Customer not found")
         subtotal = float(payload.get("subtotal") or 0)
         gst_amount = float(payload.get("gst_amount") or 0)
-        total_amount = float(payload.get("total_amount") or (subtotal + gst_amount))
+        total_amount = float(payload.get("total_amount")
+                             or (subtotal + gst_amount))
         place_of_supply = payload.get("place_of_supply") or 'KA'
         notes = payload.get("notes")
         gst_rate = float(payload.get("gst_rate") or 0.0)
@@ -134,7 +141,8 @@ async def create_invoice_service(
         gst_rate=gst_rate,
         service_type=payload.get("service_type"),
         place_of_supply=place_of_supply,
-        gst_treatment=payload.get("gst_treatment") or GSTTreatment.TAXABLE.value,
+        gst_treatment=payload.get(
+            "gst_treatment") or GSTTreatment.TAXABLE.value,
         reverse_charge=payload.get("reverse_charge") or False,
         due_date=payload.get("due_date"),
         notes=notes,

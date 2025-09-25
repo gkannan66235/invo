@@ -170,7 +170,15 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# In TESTING (including pytest) drastically reduce bcrypt rounds to speed startup & avoid perceived hangs.
+_bcrypt_rounds = 12
+if os.getenv("TESTING", "false").lower() == "true" or os.getenv("FAST_TESTS") == "1":
+    # Use lightweight rounds; security not relevant for ephemeral test hashes
+    _bcrypt_rounds = int(os.getenv("BCRYPT_ROUNDS", "4"))
+else:
+    _bcrypt_rounds = int(os.getenv("BCRYPT_ROUNDS", "12"))
+pwd_context = CryptContext(
+    schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_bcrypt_rounds)
 
 
 def get_password_hash(password: str) -> str:
@@ -181,8 +189,8 @@ def get_password_hash(password: str) -> str:
 async def create_default_admin_user():
     """Create a default admin user if none exists."""
     try:
-        # Skip seeding in fast test mode to save DB round trips
-        if os.getenv("FAST_TESTS") == "1":
+        # Skip seeding entirely in automated tests; test fixtures seed required users.
+        if os.getenv("FAST_TESTS") == "1" or os.getenv("TESTING", "false").lower() == "true":
             return
         async with get_async_db() as db:
             # Check if admin user already exists
@@ -242,12 +250,22 @@ async def lifespan(app: FastAPI):  # FastAPI lifespan signature (app not directl
         configure_logging()
         logger.info("Structured logging configured")
         # Lightweight fast-test mode (skip OTEL setup overhead)
-        if os.getenv("FAST_TESTS") == "1":
+        fast_tests = os.getenv("FAST_TESTS") == "1"
+        if fast_tests:
             logger.info(
                 "FAST_TESTS=1 detected: skipping OpenTelemetry observability setup for speed")
         else:
             setup_observability()
             logger.info("Observability setup complete")
+
+        # In FAST_TESTS we also skip DB health check + user seeding to avoid potential
+        # contention with test fixture driven schema setup (drop/create) that can look like a hang.
+        if fast_tests:
+            logger.info(
+                "FAST_TESTS=1: Skipping DB connectivity check & admin/user seeding in lifespan")
+            yield
+            logger.info("FAST_TESTS=1 lifespan shutdown")
+            return
 
         # Check database connection
         db_connected = await check_async_database_connection()

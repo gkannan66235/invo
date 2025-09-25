@@ -3,7 +3,8 @@ from src.utils.errors import error_payload, ERROR_CODES, OverpayNotAllowed
 
 
 def test_error_payload_basic():
-    p = error_payload(ERROR_CODES["validation"], "Invalid data", details={"field": "x"}, path="/api/v1/invoices")
+    p = error_payload(ERROR_CODES["validation"], "Invalid data", details={
+                      "field": "x"}, path="/api/v1/invoices")
     assert p["status"] == "error"
     assert p["error"]["code"] == ERROR_CODES["validation"]
     assert p["error"]["details"] == {"field": "x"}

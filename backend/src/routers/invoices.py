@@ -370,7 +370,8 @@ async def create_invoice(
         raise http_exc
     # Metrics
     if invoice_create_counter:  # type: ignore[attr-defined]
-        invoice_create_counter.add(1, {"place_of_supply": created.invoice.place_of_supply})
+        invoice_create_counter.add(
+            1, {"place_of_supply": created.invoice.place_of_supply})
     record_invoice_operation("create")
     return _success(_to_frontend_invoice(created.invoice, created.customer))
 
@@ -463,11 +464,13 @@ async def _update_invoice_logic(invoice_id: UUID, payload: InvoiceUpdate, db: As
         setattr(http_exc, 'code', InvoiceNotFound.code)
         raise http_exc
     except ServiceOverpayNotAllowed as exc:  # domain overpay
-        http_exc = HTTPException(status_code=400, detail=exc.message)  # type: ignore[attr-defined]
+        # type: ignore[attr-defined]
+        http_exc = HTTPException(status_code=400, detail=exc.message)
         setattr(http_exc, 'code', exc.code)  # type: ignore[attr-defined]
         raise http_exc
     if invoice_update_counter:  # type: ignore[attr-defined]
-        invoice_update_counter.add(1, {"payment_status": invoice.payment_status})
+        invoice_update_counter.add(
+            1, {"payment_status": invoice.payment_status})
     record_invoice_operation("update")
     return _to_frontend_invoice(invoice, customer)
 
