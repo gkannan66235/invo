@@ -27,7 +27,7 @@ async def test_customer_reuse_on_duplicate_invoice(auth_client: AsyncClient, db_
     }
     r1 = await auth_client.post("/api/v1/invoices/", json=payload1)
     assert r1.status_code == 201, r1.text
-    inv1 = r1.json()
+    inv1 = r1.json().get("data", r1.json())
     assert inv1["customer_id"], "First invoice missing customer_id"
 
     payload2 = {
@@ -40,7 +40,7 @@ async def test_customer_reuse_on_duplicate_invoice(auth_client: AsyncClient, db_
     }
     r2 = await auth_client.post("/api/v1/invoices/", json=payload2)
     assert r2.status_code == 201, r2.text
-    inv2 = r2.json()
+    inv2 = r2.json().get("data", r2.json())
 
     assert inv2["customer_id"] == inv1["customer_id"], "Expected same customer reused, got different IDs"
 
@@ -70,11 +70,11 @@ async def test_new_customer_created_for_different_phone(auth_client: AsyncClient
 
     r1 = await auth_client.post("/api/v1/invoices/", json=p1)
     assert r1.status_code == 201, r1.text
-    inv1 = r1.json()
+    inv1 = r1.json().get("data", r1.json())
 
     r2 = await auth_client.post("/api/v1/invoices/", json=p2)
     assert r2.status_code == 201, r2.text
-    inv2 = r2.json()
+    inv2 = r2.json().get("data", r2.json())
 
     assert inv1["customer_id"] != inv2["customer_id"], "Different phone should yield different customers"
 

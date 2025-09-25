@@ -26,7 +26,8 @@ async def test_soft_delete_flow_multiple_creates(auth_client: AsyncClient):
             },
         )
         assert r.status_code == status.HTTP_201_CREATED, r.text
-        created_ids.append(r.json()["id"])
+        body = r.json()
+        created_ids.append(body.get("data", body)["id"])
 
     # Soft delete the middle invoice
     mid_id = created_ids[1]
@@ -36,7 +37,9 @@ async def test_soft_delete_flow_multiple_creates(auth_client: AsyncClient):
     # List: should contain first & last, not middle
     lst = await auth_client.get("/api/v1/invoices/")
     assert lst.status_code == 200, lst.text
-    ids_in_list = {inv["id"] for inv in lst.json()}
+    body_list = lst.json()
+    data_list = body_list.get("data", body_list)
+    ids_in_list = {inv["id"] for inv in data_list}
     assert created_ids[0] in ids_in_list
     assert created_ids[2] in ids_in_list
     assert mid_id not in ids_in_list
@@ -44,4 +47,5 @@ async def test_soft_delete_flow_multiple_creates(auth_client: AsyncClient):
     # Detail of deleted still accessible
     detail = await auth_client.get(f"/api/v1/invoices/{mid_id}")
     assert detail.status_code == 200, detail.text
-    assert detail.json().get("is_deleted") is True
+    detail_data = detail.json().get("data", detail.json())
+    assert detail_data.get("is_deleted") is True

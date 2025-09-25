@@ -26,7 +26,7 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     }
     r_create = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert r_create.status_code == status.HTTP_201_CREATED, r_create.text
-    inv = r_create.json()
+    inv = r_create.json().get("data", r_create.json())
     assert inv["amount"] == 100.0
     assert inv["gst_rate"] == 18.0
     assert inv["gst_amount"] == 18.0
@@ -38,7 +38,7 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     patch_payload = {"amount": "200.50", "gst_rate": "5"}
     r_patch = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json=patch_payload)
     assert r_patch.status_code == status.HTTP_200_OK, r_patch.text
-    inv2 = r_patch.json()
+    inv2 = r_patch.json().get("data", r_patch.json())
     assert inv2["amount"] == 200.5
     assert inv2["gst_rate"] == 5.0
     # gst = 200.50 * 5% = 10.025 -> rounded 10.03 (current rounding strategy)
@@ -51,7 +51,7 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     pay_patch = {"paid_amount": "50"}
     r_pay = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json=pay_patch)
     assert r_pay.status_code == status.HTTP_200_OK, r_pay.text
-    inv3 = r_pay.json()
+    inv3 = r_pay.json().get("data", r_pay.json())
     assert inv3["payment_status"] == "partial"
     assert inv3["outstanding_amount"] == round(inv3["total_amount"] - 50.0, 2)
 
@@ -66,7 +66,7 @@ async def test_invoice_numeric_string_coercion_create_and_update(auth_client: As
     }
     r_create2 = await auth_client.post("/api/v1/invoices/", json=create_payload2)
     assert r_create2.status_code == status.HTTP_201_CREATED, r_create2.text
-    inv_empty = r_create2.json()
+    inv_empty = r_create2.json().get("data", r_create2.json())
     assert inv_empty["amount"] == 80.0
     # Expect gst_rate equals configured default (18 unless overridden) and gst math matches
     from src.config.settings import get_default_gst_rate  # type: ignore

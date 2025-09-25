@@ -23,10 +23,9 @@ async def test_invoice_recompute_on_amount_and_gst_change(auth_client: AsyncClie
         "amount": 100.0,
         "gst_rate": 18.0,
     }
-
     r_create = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert r_create.status_code == status.HTTP_201_CREATED, r_create.text
-    inv = r_create.json()
+    inv = r_create.json().get("data", r_create.json())
     assert inv["amount"] == 100.0
     assert inv["gst_rate"] == 18.0
     assert inv["gst_amount"] == 18.0
@@ -38,7 +37,7 @@ async def test_invoice_recompute_on_amount_and_gst_change(auth_client: AsyncClie
     patch_payload = {"amount": 200.0, "gst_rate": 12.0}
     r_patch = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json=patch_payload)
     assert r_patch.status_code == status.HTTP_200_OK, r_patch.text
-    inv2 = r_patch.json()
+    inv2 = r_patch.json().get("data", r_patch.json())
     assert inv2["amount"] == 200.0
     assert inv2["gst_rate"] == 12.0
     assert inv2["gst_amount"] == 24.0, inv2
@@ -49,7 +48,7 @@ async def test_invoice_recompute_on_amount_and_gst_change(auth_client: AsyncClie
     pay_patch = {"paid_amount": 50.0}
     r_pay = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json=pay_patch)
     assert r_pay.status_code == status.HTTP_200_OK, r_pay.text
-    inv3 = r_pay.json()
+    inv3 = r_pay.json().get("data", r_pay.json())
     assert inv3["payment_status"] == "partial"
     assert inv3["outstanding_amount"] == 174.0  # 224 - 50
 
@@ -57,7 +56,7 @@ async def test_invoice_recompute_on_amount_and_gst_change(auth_client: AsyncClie
     adjust_patch = {"amount": 150.0, "gst_rate": 18.0}
     r_adjust = await auth_client.patch(f"/api/v1/invoices/{invoice_id}", json=adjust_patch)
     assert r_adjust.status_code == status.HTTP_200_OK, r_adjust.text
-    inv4 = r_adjust.json()
+    inv4 = r_adjust.json().get("data", r_adjust.json())
     # Recomputed amounts: subtotal=150, gst=27, total=177
     assert inv4["amount"] == 150.0
     assert inv4["gst_rate"] == 18.0
