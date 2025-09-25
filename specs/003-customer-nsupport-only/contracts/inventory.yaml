@@ -1,0 +1,22 @@
+openapi: 3.0.1
+info:
+  title: Inventory API
+  version: 0.1.0
+paths:
+  /api/v1/inventory:
+    get:
+      summary: List inventory items
+      responses:
+        '200':
+          description: List
+    post:
+      summary: Create inventory item
+      responses:
+        '201':
+          description: Created
+  /api/v1/inventory/{item_id}:
+    patch:
+      summary: Update inventory item
+      responses:
+        '200':
+          description: Updated

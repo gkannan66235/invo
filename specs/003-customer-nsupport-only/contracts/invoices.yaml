@@ -1,0 +1,24 @@
+openapi: 3.0.1
+info:
+  title: Invoices API
+  version: 0.1.0
+paths:
+  /api/v1/invoices:
+    post:
+      summary: Create invoice
+      responses:
+        '201': { description: Created }
+    get:
+      summary: List invoices
+      responses:
+        '200': { description: List }
+  /api/v1/invoices/{invoice_id}:
+    get:
+      summary: Get invoice
+      responses:
+        '200': { description: Invoice }
+  /api/v1/invoices/{invoice_id}/pdf:
+    get:
+      summary: Download invoice PDF
+      responses:
+        '200': { description: PDF stream }

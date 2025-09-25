@@ -1,0 +1,271 @@
+# Tasks: Customer & Invoice Localisation + Printable Invoices & Core Management Modules
+
+Feature Directory: `specs/003-customer-nsupport-only/`
+Plan Artifacts: research.md, data-model.md, contracts/, quickstart.md
+
+Legend:
+
+- [P] = Can run in parallel with other [P] tasks (different files / no ordering dependency)
+- Dependencies listed as task IDs that must complete first
+- Contract tests & integration tests precede implementation (TDD)
+
+## High-Level Dependency Flow
+
+Setup → (Contract Tests + Integration Tests + Model Migrations) → Services → Routers/Endpoints → PDF/Observability/Audit → Frontend Adjustments → Performance/Polish → Docs
+
+---
+
+## Numbered Tasks
+
+### Phase A: Setup & Baseline
+
+T001. Ensure branch `003-customer-nsupport-only` is active & sync with main (no uncommitted changes)
+
+- Output: Clean working tree
+- File(s): n/a
+
+T002. Backend dependency review: add Playwright dependency & PDF helper placeholder
+
+- File(s): `backend/requirements.txt` (or introduce optional extras), new `backend/src/services/pdf_service.py`
+- Dependency: T001
+
+T003. Add lint/test pre-commit hooks update (ruff/black config confirm) [P]
+
+- File(s): `.pre-commit-config.yaml` (if exists) or create
+- Dependency: T001
+
+T004. Confirm observability config extensibility for new metrics (pdf_generate, invoice_download, customer_duplicate_warning) [P]
+
+- File(s): `backend/src/config/observability.py`
+- Dependency: T001
+
+### Phase B: Data Model & Migrations (Models before services)
+
+T005. Create Alembic migration for new tables & columns:
+
+- Tables: `customer`, `inventory_item`, `invoice_line`, `invoice_download_audit`
+- Columns added to `invoice`: branding_snapshot, gst_rate_snapshot, settings_snapshot (if absent)
+- Indexes: idx_customer_mobile, idx_invoice_customer, idx_audit_invoice, idx_audit_user
+- File(s): `backend/alembic/versions/<timestamp>_customer_inventory_invoice_pdf.py`
+- Dependency: T002
+
+T006. SQLAlchemy models (if not present) for Customer, InventoryItem, InvoiceLine, InvoiceDownloadAudit
+
+- File(s): `backend/src/models/database.py`
+- Dependency: T005
+
+### Phase C: Contract Tests (One per contract) – Parallelizable
+
+T007. Contract test: Customers API list/create/get/update (duplicate warning field) [P]
+
+- File(s): `backend/src/tests/contract/test_customers_contract.py`
+- Dependencies: T005
+
+T008. Contract test: Inventory API list/create/update [P]
+
+- File(s): `backend/src/tests/contract/test_inventory_contract.py`
+- Dependencies: T005
+
+T009. Contract test: Invoices API create/list/get, ensures INR fields & snapshot placeholders [P]
+
+- File(s): `backend/src/tests/contract/test_invoices_contract.py`
+- Dependencies: T005
+
+T010. Contract test: Invoice PDF download endpoint (content-type, audit log inserted) [P]
+
+- File(s): `backend/src/tests/contract/test_invoice_pdf_contract.py`
+- Dependencies: T005
+
+T011. Contract test: Settings API get/patch (GST rate prospective) [P]
+
+- File(s): `backend/src/tests/contract/test_settings_contract.py`
+- Dependencies: T005
+
+### Phase D: Integration Tests (User Scenarios) – Parallelizable after migrations
+
+T012. Integration test: Invalid Indian mobile rejected scenario [P]
+
+- File(s): `backend/src/tests/integration/test_customer_mobile_validation.py`
+- Dependencies: T005
+
+T013. Integration test: Duplicate mobile warning flow [P]
+
+- File(s): `backend/src/tests/integration/test_customer_duplicate_warning.py`
+- Dependencies: T005
+
+T014. Integration test: Invoice creation INR formatting & totals [P]
+
+- File(s): `backend/src/tests/integration/test_invoice_inr_formatting.py`
+- Dependencies: T005
+
+T015. Integration test: Printable & PDF generation + audit logged [P]
+
+- File(s): `backend/src/tests/integration/test_invoice_pdf_audit.py`
+- Dependencies: T005
+
+T016. Integration test: Settings update prospective GST application [P]
+
+- File(s): `backend/src/tests/integration/test_settings_gst_prospective.py`
+- Dependencies: T005
+
+T017. Integration test: Cancelled vs soft-deleted invoice access control [P]
+
+- File(s): `backend/src/tests/integration/test_invoice_soft_delete_access.py`
+- Dependencies: T005
+
+### Phase E: Service Layer Implementations (Sequential per shared file)
+
+T018. Implement Customer service: create (normalize, duplicate check), update
+
+- File(s): `backend/src/services/customer_service.py`
+- Dependencies: T007 T012 T013
+
+T019. Implement Inventory service CRUD (activate/deactivate)
+
+- File(s): `backend/src/services/inventory_service.py`
+- Dependencies: T008
+
+T020. Extend Invoice service for snapshot fields & lines, settings snapshot
+
+- File(s): `backend/src/services/invoice_service.py`
+- Dependencies: T009 T014 T016
+
+T021. Implement PDF service (HTML render + Playwright print) & caching hook
+
+- File(s): `backend/src/services/pdf_service.py`
+- Dependencies: T010 T015 T018 T020
+
+T022. Implement Settings service (get/update with prospective GST logic)
+
+- File(s): `backend/src/services/settings_service.py`
+- Dependencies: T011 T016
+
+T023. Implement Audit logging service (async write) for downloads
+
+- File(s): `backend/src/services/audit_service.py`
+- Dependencies: T010 T015 T021
+
+### Phase F: Routers / API Endpoints
+
+T024. Add `customers.py` router (list/create/get/update) wiring to service
+
+- File(s): `backend/src/routers/customers.py`
+- Dependencies: T018
+
+T025. Add `inventory.py` router (list/create/update/deactivate)
+
+- File(s): `backend/src/routers/inventory.py`
+- Dependencies: T019
+
+T026. Extend existing `invoices.py` router: create/list/get use new service logic & add lines snapshot
+
+- File(s): `backend/src/routers/invoices.py`
+- Dependencies: T020
+
+T027. Add PDF download route `/api/v1/invoices/{id}/pdf` using pdf_service & audit service
+
+- File(s): `backend/src/routers/invoices.py`
+- Dependencies: T021 T023
+
+T028. Add `settings.py` router (get/patch) admin-only guard
+
+- File(s): `backend/src/routers/settings.py`
+- Dependencies: T022
+
+### Phase G: Observability & Metrics
+
+T029. Add new metrics instruments (counters/histograms) and integrate into services
+
+- File(s): `backend/src/config/observability.py`, service files
+- Dependencies: T021 T023
+
+T030. Add performance test for PDF generation p95 (<2s) & duplicate lookup (<50ms) [P]
+
+- File(s): `backend/src/tests/performance/test_pdf_performance.py`
+- Dependencies: T021
+
+### Phase H: Frontend Integration
+
+T031. Frontend API layer additions: customers, inventory, settings, invoice PDF fetch
+
+- File(s): `frontend/src/lib/api.ts`, new util modules
+- Dependencies: T024 T025 T027 T028
+
+T032. UI Components: Customer management screens (list/create/edit), duplicate warning toast
+
+- File(s): `frontend/src/app/(customers)/**`
+- Dependencies: T031
+
+T033. UI Components: Inventory management screens
+
+- File(s): `frontend/src/app/(inventory)/**`
+- Dependencies: T031
+
+T034. UI Components: Settings screen (GST update, branding)
+
+- File(s): `frontend/src/app/(settings)/**`
+- Dependencies: T031
+
+T035. Invoice printable view & print button + PDF download integration
+
+- File(s): `frontend/src/app/(invoices)/[id]/print/page.tsx`
+- Dependencies: T027 T031
+
+### Phase I: Polish & Documentation
+
+T036. Add unit tests for formatting util (Indian digit grouping) [P]
+
+- File(s): `backend/src/tests/unit/test_indian_formatting.py`
+- Dependencies: T020
+
+T037. Add unit tests for mobile normalization edge cases [P]
+
+- File(s): `backend/src/tests/unit/test_mobile_normalization.py`
+- Dependencies: T018
+
+T038. Documentation: `docs/api/customers.md`, update invoices doc with PDF endpoint & metrics [P]
+
+- File(s): `docs/api/customers.md`, `docs/api/invoices.md`
+- Dependencies: T024 T027 T029
+
+T039. Update README and feature spec progress checklist (mark tasks & artifacts) [P]
+
+- File(s): `README.md`, `specs/003-customer-nsupport-only/spec.md`
+- Dependencies: T038
+
+T040. Final lint & coverage gate execution, adjust any missing tests
+
+- File(s): n/a (CI pipeline)
+- Dependencies: T036 T037 T030 T035
+
+### Phase J: Validation
+
+T041. Run quickstart walkthrough & record results (attach run log) – ensure all scenarios pass
+
+- File(s): `specs/003-customer-nsupport-only/quickstart.md` (append results section)
+- Dependencies: T040
+
+---
+
+## Parallel Execution Guidance
+
+Example parallel batches:
+
+- Batch 1 (after T005): T007 [P], T008 [P], T009 [P], T010 [P], T011 [P], T012 [P], T013 [P], T014 [P], T015 [P], T016 [P], T017 [P]
+- Batch 2 (later): T030 [P], T036 [P], T037 [P], T038 [P], T039 [P]
+
+Ensure shared-file sequential tasks not parallelized (e.g., T026 & T027 both modify `invoices.py`).
+
+## Task Agent Command Examples
+
+To execute a task (conceptual examples):
+
+- Implement migration (T005): "Apply migration creating customer/inventory/invoice_line/audit tables plus invoice snapshot columns"
+- Create contract test (T007): "Write failing test for /api/v1/customers create duplicating normalized mobile warning"
+
+## Completion Criteria
+
+- All contract & integration tests initially fail then pass after implementation tasks
+- Performance test demonstrates PDF p95 <2s and duplicate lookup <50ms
+- Audit logging entries verifiable
+- Documentation updated and quickstart scenarios validated
