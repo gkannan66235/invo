@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient
 
+
 @pytest.mark.asyncio
 async def test_invoice_unknown_fields_dropped(auth_client: AsyncClient):
     """T056: Unknown extra fields in create payload are ignored and absent from response."""
@@ -30,4 +31,5 @@ async def test_invoice_unknown_fields_dropped(auth_client: AsyncClient):
                       # Also ensure they didn't become snake_case variants
                       "legacy_id", "random_flag", "internal_notes", "drop_me"}
     present_keys = set(data.keys())
-    assert forbidden_keys.isdisjoint(present_keys), f"Unexpected extra keys leaked: {forbidden_keys & present_keys}"
+    assert forbidden_keys.isdisjoint(
+        present_keys), f"Unexpected extra keys leaked: {forbidden_keys & present_keys}"
