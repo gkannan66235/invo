@@ -21,6 +21,14 @@ async def test_create_invoice_minimal(auth_client: AsyncClient):
     assert data["gst_amount"] == 180
     assert data["total_amount"] == 1180
     assert data["payment_status"].lower() == "pending"
+    # Snapshot fields (added in invoice snapshot feature) should be present / non-null
+    # They may be simple placeholder dicts/values for now but must exist
+    assert "branding_snapshot" in data
+    assert data["branding_snapshot"] is not None
+    assert "gst_rate_snapshot" in data
+    assert data["gst_rate_snapshot"] == 18  # should capture supplied rate
+    assert "settings_snapshot" in data
+    assert data["settings_snapshot"] is not None
 
 
 @pytest.mark.asyncio
@@ -75,3 +83,14 @@ async def test_overpay_rejected(auth_client: AsyncClient):
     assert bad.status_code == 400
     # Domain error standardized message: Paid amount <x> exceeds total <y>
     assert "exceeds total" in bad.text
+
+
+@pytest.mark.asyncio
+async def test_invoice_download_not_found(auth_client: AsyncClient):
+    import uuid
+    missing_id = uuid.uuid4()
+    resp = await auth_client.post(f"/api/v1/invoices/{missing_id}/download/pdf")
+    assert resp.status_code == 404
+    body = resp.json()
+    # Ensure standardized structure
+    assert body.get("status") == "error" or "detail" in body

@@ -311,6 +311,10 @@ def _to_frontend_invoice(invoice: Invoice, customer: Optional[Customer] = None) 
         "is_cancelled": bool(invoice.is_cancelled),
         # Include is_deleted to enable UI decisions; list endpoint already filters them out (T026/T027)
         "is_deleted": bool(getattr(invoice, 'is_deleted', False)),
+        # Snapshot fields (new feature) - exposed for audit / display; may be None for legacy records
+        "branding_snapshot": invoice.branding_snapshot,
+        "gst_rate_snapshot": float(invoice.gst_rate_snapshot) if getattr(invoice, 'gst_rate_snapshot', None) is not None else None,
+        "settings_snapshot": invoice.settings_snapshot,
     }
 
 
