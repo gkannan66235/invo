@@ -58,3 +58,6 @@ azure-identity==1.15.0
 
 # Performance & Load Testing  
 locust==2.17.0
+
+# PDF Generation (Playwright) - optional; install separately if environment supports headless Chromium
+playwright==1.46.0
