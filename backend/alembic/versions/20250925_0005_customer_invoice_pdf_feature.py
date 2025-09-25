@@ -23,7 +23,8 @@ def upgrade() -> None:
     if not _column_exists("customers", "mobile_normalized"):
         op.add_column(
             "customers",
-            sa.Column("mobile_normalized", sa.String(length=10), nullable=True),
+            sa.Column("mobile_normalized", sa.String(
+                length=10), nullable=True),
         )
     op.create_index(
         "idx_customer_mobile",
@@ -80,7 +81,8 @@ def upgrade() -> None:
             index=True,
         ),
         sa.Column("description", sa.Text(), nullable=False),
-        sa.Column("quantity", sa.Numeric(10, 2), nullable=False, server_default="1.00"),
+        sa.Column("quantity", sa.Numeric(10, 2),
+                  nullable=False, server_default="1.00"),
         sa.Column("unit_price", sa.Numeric(12, 2), nullable=False),
         sa.Column("line_total", sa.Numeric(14, 2), nullable=False),
         sa.Column(
@@ -115,7 +117,8 @@ def upgrade() -> None:
             sa.ForeignKey("users.id", ondelete="SET NULL"),
             nullable=True,
         ),
-        sa.Column("action", sa.String(length=10), nullable=False),  # print | pdf
+        sa.Column("action", sa.String(length=10),
+                  nullable=False),  # print | pdf
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

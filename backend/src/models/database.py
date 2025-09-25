@@ -16,7 +16,8 @@ import sqlalchemy as sa
 import os
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship, validates
-from sqlalchemy.sql import func  # retained for backward compatibility; will phase out direct usage
+# retained for backward compatibility; will phase out direct usage
+from sqlalchemy.sql import func
 
 TESTING = os.getenv("TESTING", "false").lower() == "true"
 
@@ -108,7 +109,8 @@ class User(Base):
     last_login = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     roles = relationship("Role", secondary=user_roles, back_populates="users")
@@ -136,7 +138,8 @@ class Role(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     users = relationship("User", secondary=user_roles, back_populates="roles")
@@ -170,7 +173,8 @@ class Customer(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     orders = relationship("Order", back_populates="customer")
@@ -238,7 +242,8 @@ class Supplier(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     inventory_items = relationship("InventoryItem", back_populates="supplier")
@@ -293,7 +298,8 @@ class InventoryItem(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     supplier = relationship("Supplier", back_populates="inventory_items")
@@ -378,7 +384,8 @@ class Order(Base):
     # Status and metadata
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
     created_by = Column(PostgresUUID(as_uuid=True), ForeignKey('users.id'))
 
     # Relationships
@@ -509,13 +516,16 @@ class Invoice(Base):
     is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True),
                         server_default=sa.text('now()'), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), onupdate=sa.text('now()'), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'now()'), onupdate=sa.text('now()'), nullable=False)
 
     # Relationships
     order = relationship("Order", back_populates="invoices")
     customer = relationship("Customer", back_populates="invoices")
-    lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
-    downloads = relationship("InvoiceDownloadAudit", back_populates="invoice", cascade="all, delete-orphan")
+    lines = relationship(
+        "InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
+    downloads = relationship(
+        "InvoiceDownloadAudit", back_populates="invoice", cascade="all, delete-orphan")
 
     # Constraints
     __table_args__ = (
@@ -558,20 +568,26 @@ class InvoiceLine(Base):
     """Invoice line item snapshot model (distinct from OrderItem)."""
     __tablename__ = 'invoice_lines'
 
-    id = Column(PostgresUUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()'))
-    invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey('invoices.id', ondelete='CASCADE'), nullable=False, index=True)
+    id = Column(PostgresUUID(as_uuid=True), primary_key=True,
+                server_default=sa.text('gen_random_uuid()'))
+    invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
+        'invoices.id', ondelete='CASCADE'), nullable=False, index=True)
     description = Column(Text, nullable=False)
     quantity = Column(Numeric(10, 2), nullable=False, default=1)
     unit_price = Column(Numeric(12, 2), nullable=False)
     line_total = Column(Numeric(14, 2), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), nullable=False)
+    created_at = Column(DateTime(timezone=True),
+                        server_default=sa.text('now()'), nullable=False)
 
     invoice = relationship("Invoice", back_populates="lines")
 
     __table_args__ = (
-        CheckConstraint('quantity > 0', name='check_invoice_line_qty_positive'),
-        CheckConstraint('unit_price >= 0', name='check_invoice_line_unit_price_positive'),
-        CheckConstraint('line_total >= 0', name='check_invoice_line_total_positive'),
+        CheckConstraint(
+            'quantity > 0', name='check_invoice_line_qty_positive'),
+        CheckConstraint('unit_price >= 0',
+                        name='check_invoice_line_unit_price_positive'),
+        CheckConstraint('line_total >= 0',
+                        name='check_invoice_line_total_positive'),
         Index('idx_invoice_lines_invoice_id', 'invoice_id'),
     )
 
@@ -580,17 +596,22 @@ class InvoiceDownloadAudit(Base):
     """Audit log for invoice PDF or print downloads."""
     __tablename__ = 'invoice_download_audit'
 
-    id = Column(PostgresUUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()'))
-    invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey('invoices.id', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = Column(PostgresUUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    id = Column(PostgresUUID(as_uuid=True), primary_key=True,
+                server_default=sa.text('gen_random_uuid()'))
+    invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
+        'invoices.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
+        'users.id', ondelete='SET NULL'), nullable=True, index=True)
     action = Column(String(10), nullable=False)  # 'print' or 'pdf'
-    created_at = Column(DateTime(timezone=True), server_default=sa.text('now()'), nullable=False)
+    created_at = Column(DateTime(timezone=True),
+                        server_default=sa.text('now()'), nullable=False)
 
     invoice = relationship("Invoice", back_populates="downloads")
     user = relationship("User")
 
     __table_args__ = (
-        CheckConstraint("action IN ('print','pdf')", name='ck_invoice_download_action_valid'),
+        CheckConstraint("action IN ('print','pdf')",
+                        name='ck_invoice_download_action_valid'),
         Index('idx_audit_invoice', 'invoice_id'),
         Index('idx_audit_user', 'user_id'),
     )
