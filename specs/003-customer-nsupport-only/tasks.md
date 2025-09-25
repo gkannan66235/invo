@@ -269,3 +269,51 @@ To execute a task (conceptual examples):
 - Performance test demonstrates PDF p95 <2s and duplicate lookup <50ms
 - Audit logging entries verifiable
 - Documentation updated and quickstart scenarios validated
+
+---
+
+## Initial Sprint Subset (Focused Vertical Slice)
+
+Purpose: Deliver core backend functionality (customers, invoices with INR & snapshots, settings, minimal PDF + audit, duplicate warning) quickly while deferring inventory, full PDF polish, frontend UI, and performance benchmarking.
+
+### Included Task IDs
+- Setup/Foundation: T001, T002 (skip T003/T004 for later unless trivial)
+- Migrations & Models: T005, T006 (Inventory table optional – can defer)
+- Contract Tests: T007, T009, T010, T011 (skip T008)
+- Integration Tests: T012, T013, T014, T015, T016 (skip T017)
+- Services: T018, T020, T021 (stub/minimal PDF), T022, T023 (synchronous insert first)
+- Routers: T024, T026, T027, T028 (skip inventory router T025)
+- Observability: T029 (partial metrics for implemented services only)
+- Unit Tests: T037 (mobile normalization) (defer T036)
+- Validation & Wrap: T040 (partial – ignore performance gating), T041 (partial quickstart results for scenarios 1–5 only)
+
+### Deferred to Later Sprints
+- Inventory (T008, T019, T025, related UI tasks)
+- Soft-delete access control test (T017)
+- Full PDF styling/caching & performance test (T030, advanced part of T021)
+- Digit grouping util & tests (T036)
+- Frontend integration & UI (T031–T035)
+- Docs & polish (T038, T039 full scope)
+
+### Sprint Acceptance Criteria
+1. All included contract & integration tests pass.
+2. Creating second customer with same normalized mobile returns `duplicate_warning=true`.
+3. Invoice creation returns currency='INR' and stores snapshot placeholders.
+4. Settings GST rate change affects only subsequent invoices.
+5. PDF endpoint returns non-empty PDF bytes and writes audit record.
+6. Metrics objects registered (no runtime errors on import) for: customer_create, duplicate_warning, pdf_generate, invoice_download.
+7. Mobile normalization unit tests pass (T037).
+
+### Recommended Execution Order
+1. T001 → T002 → T005 → T006
+2. Author failing tests: T007, T009, T010, T011, T012–T016, T037
+3. Implement services/endpoints: T018 → T020 → T022 → T024 → T026 → T021 (stub) → T023 (sync) → T027 → T028 → T029 (partial)
+4. Run full test suite & fix (T040 partial)
+5. Execute quickstart scenarios 1–5 (T041 partial) and record outcomes.
+
+### Notes
+- PDF service (T021) may initially return a simple PDF (e.g., generated via minimal HTML + headless Chromium) without full styling or caching.
+- Audit logging (T023) synchronous now; can be optimized later with background tasks.
+- If Inventory model/table deferred, adjust migration (T005) to exclude it to reduce scope.
+
+---
