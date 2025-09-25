@@ -24,6 +24,7 @@ try:  # Prefer src.* imports; fallback adds backend dir to path
         invoice_create_counter,
         invoice_update_counter,
         invoice_delete_counter,
+        record_invoice_operation,
     )
 except ImportError:
     import sys
@@ -39,6 +40,7 @@ except ImportError:
         invoice_create_counter,
         invoice_update_counter,
         invoice_delete_counter,
+        record_invoice_operation,
     )
 from .auth import get_current_user, User
 
@@ -426,6 +428,7 @@ async def create_invoice(
     # Emit creation metric (if instrumentation active)
     if invoice_create_counter:  # type: ignore[attr-defined]
         invoice_create_counter.add(1, {"place_of_supply": place_of_supply})
+    record_invoice_operation("create")
     return _success(_to_frontend_invoice(invoice, customer))
 
 
@@ -534,6 +537,7 @@ async def _update_invoice_logic(
     if invoice_update_counter:  # type: ignore[attr-defined]
         invoice_update_counter.add(
             1, {"payment_status": invoice.payment_status})
+    record_invoice_operation("update")
     cust = None
     if invoice.customer_id:
         cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
@@ -584,4 +588,5 @@ async def delete_invoice(
         await db.refresh(invoice)
         if invoice_delete_counter:  # type: ignore[attr-defined]
             invoice_delete_counter.add(1, {})
+        record_invoice_operation("delete")
     return _success(None)

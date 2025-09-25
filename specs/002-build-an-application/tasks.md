@@ -59,14 +59,14 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [x] T029 Ensure migrations reflect soft delete & GST default changes (File: `backend/alembic/versions/<new>.py`). (Depends: T026, T022) # Soft delete migration exists; GST default is config-only.
 - [x] T030 Remove legacy `create_database_tables_async()` from startup post-migration confidence (File: `backend/src/main.py`). (Depends: Alembic validated)
 - [x] T031 Add structured logging for auth + invoice lifecycle (File: `backend/src/config/logging.py`, `backend/src/routers/*`). (Depends: T020, T021)
-- [ ] T032 Add Prometheus metrics registration for new counters (File: `backend/src/config/observability.py`). (Depends: T028)
+- [x] T032 Add Prometheus metrics registration for new counters (File: `backend/src/config/observability.py`). (Depends: T028)
 - [x] T033 Add health & readiness endpoints (File: `backend/src/routers/system.py`).
 
 ### Phase 5: Quality & Polish
 
-- [ ] T034 [P] Add unit tests for error utils (File: `backend/tests/unit/test_errors.py`). (Depends: T002)
-- [ ] T035 [P] Add unit tests for GST calculation edge (0, high values) (File: `backend/tests/unit/test_gst_math.py`).
-- [ ] T036 [P] Add unit tests for payment transitions logic (File: `backend/tests/unit/test_payment_status.py`).
+ - [x] T034 [P] Add unit tests for error utils (File: `backend/tests/unit/test_errors.py`). (Depends: T002)
+ - [x] T035 [P] Add unit tests for GST calculation edge (0, high values) (File: `backend/tests/unit/test_gst_math.py`).
+ - [x] T036 [P] Add unit tests for payment transitions logic (File: `backend/tests/unit/test_payment_status.py`).
 - [ ] T037 [P] Refactor duplication in invoices router (extract service layer) (File: `backend/src/services/invoice_service.py`). (Depends: T021)
 - [ ] T038 [P] Add service layer unit tests (File: `backend/tests/unit/test_invoice_service.py`). (Depends: T037)
 - [ ] T039 [P] Documentation update: API endpoints & examples (File: `docs/api/invoices.md`). (Depends: T021)

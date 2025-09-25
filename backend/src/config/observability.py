@@ -21,6 +21,15 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.sdk.resources import Resource
 from prometheus_client import start_http_server
+try:  # Native Prometheus (deterministic for FAST_TESTS) - T032 enhancement
+    from prometheus_client import Counter as _PromCounter
+    _native_invoice_operation_counter = _PromCounter(
+        "invoice_operations_total",
+        "Total invoice operations by type",
+        ["operation"]
+    )
+except Exception:  # pragma: no cover
+    _native_invoice_operation_counter = None  # type: ignore
 
 
 def configure_observability(
@@ -380,4 +389,18 @@ __all__ = [
     "invoice_delete_counter",
     "auth_login_counter",
     "auth_login_failed_counter",
+    # Native helpers
+    "record_invoice_operation",
 ]
+
+
+def record_invoice_operation(operation: str) -> None:
+    """Record an invoice operation in native Prometheus registry (fast/deterministic).
+
+    This supplements OTEL counters so tests can assert without full OTEL stack.
+    """
+    try:  # pragma: no cover - defensive
+        if _native_invoice_operation_counter is not None:
+            _native_invoice_operation_counter.labels(operation=operation).inc()
+    except Exception:
+        pass
