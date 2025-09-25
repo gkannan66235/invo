@@ -31,6 +31,7 @@ try:  # Prefer src.* imports; fallback adds backend dir to path
         get_invoice_service,
         update_invoice_service,
         delete_invoice_service,
+        record_invoice_download,
         InvoiceNotFound,
         ValidationError,
         CustomerNotFound,
@@ -57,6 +58,7 @@ except ImportError:
         get_invoice_service,
         update_invoice_service,
         delete_invoice_service,
+        record_invoice_download,
         InvoiceNotFound,
         ValidationError,
         CustomerNotFound,
@@ -528,3 +530,42 @@ async def delete_invoice(
             invoice_delete_counter.add(1, {})
         record_invoice_operation("delete")
     return _success(None)
+
+
+@router.post('/{invoice_id}/download/{action}', status_code=status.HTTP_201_CREATED)
+async def record_download(
+    invoice_id: UUID,
+    action: str,  # 'print' or 'pdf'
+    db: AsyncSession = Depends(get_async_db_dependency),
+    current_user: User = Depends(get_current_user)
+):
+    """Record a print or PDF download action for an invoice.
+
+    This is a lightweight endpoint preparing for future PDF generation. Currently it:
+      - Validates invoice exists (service raises InvoiceNotFound if not)
+      - Persists an audit row (invoice_download_audit)
+      - Returns success envelope with the audit id & action
+    """
+    try:
+        audit = await record_invoice_download(
+            db=db,
+            invoice_id=invoice_id,
+            user_id=current_user.id if getattr(
+                current_user, 'id', None) else None,
+            action=action.lower(),
+        )
+    except InvoiceNotFound as exc:  # type: ignore[name-defined]
+        http_exc = HTTPException(status_code=404, detail=str(exc))
+        # type: ignore[attr-defined]
+        setattr(http_exc, 'code', InvoiceNotFound.code)
+        raise http_exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    record_invoice_operation("download")
+    return _success({
+        "id": str(audit.id),
+        "invoice_id": str(audit.invoice_id),
+        "user_id": str(audit.user_id) if audit.user_id else None,
+        "action": audit.action,
+        "created_at": audit.created_at.isoformat() if audit.created_at else None,
+    })

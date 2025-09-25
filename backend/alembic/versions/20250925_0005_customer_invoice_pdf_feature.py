@@ -71,7 +71,9 @@ def upgrade() -> None:
             "id",
             postgresql.UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("uuid_generate_v4()"),
+            # Use gen_random_uuid() for consistency (pgcrypto) vs uuid_generate_v4 (uuid-ossp)
+            # pgcrypto extension creation is ensured earlier in test bootstrap; more portable than requiring uuid-ossp
+            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column(
             "invoice_id",
@@ -88,7 +90,8 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("NOW()"),
+            # Prefer standard SQL form for portability & cross-dialect test friendliness
+            server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=False,
         ),
     )
@@ -103,7 +106,7 @@ def upgrade() -> None:
             "id",
             postgresql.UUID(as_uuid=True),
             primary_key=True,
-            server_default=sa.text("uuid_generate_v4()"),
+            server_default=sa.text("gen_random_uuid()"),
         ),
         sa.Column(
             "invoice_id",
@@ -122,7 +125,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("NOW()"),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
             nullable=False,
         ),
         sa.CheckConstraint(

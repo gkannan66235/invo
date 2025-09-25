@@ -13,8 +13,8 @@ down_revision: Union[str, None] = "20250925_0003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-# NOTE: We rely on the uuid-ossp extension (enabled in init.sql) providing uuid_generate_v4().
-# We choose uuid_generate_v4() instead of gen_random_uuid() to avoid requiring pgcrypto.
+# Simplified strategy: use gen_random_uuid() from pgcrypto for all UUID defaults.
+# We create pgcrypto extension if it isn't already present (harmless if it is).
 TARGET_TABLES = [
     "roles",
     "users",
@@ -27,9 +27,14 @@ TARGET_TABLES = [
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+    try:  # noqa: BLE001
+        conn.exec_driver_sql('CREATE EXTENSION IF NOT EXISTS pgcrypto;')
+    except Exception:  # noqa: BLE001
+        pass
     for table in TARGET_TABLES:
         op.execute(
-            f"ALTER TABLE {table} ALTER COLUMN id SET DEFAULT uuid_generate_v4();")
+            f"ALTER TABLE {table} ALTER COLUMN id SET DEFAULT gen_random_uuid();")
 
 
 def downgrade() -> None:

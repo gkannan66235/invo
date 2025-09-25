@@ -28,7 +28,7 @@ from typing import AsyncGenerator, Optional
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from passlib.context import CryptContext
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -36,6 +36,8 @@ from sqlalchemy.orm import sessionmaker
 
 # Flag test mode early
 os.environ.setdefault("TESTING", "true")
+# Enable fast test path (skip heavy observability, reduce bcrypt rounds, avoid optional heavy deps)
+os.environ.setdefault("FAST_TESTS", "1")
 
 # --- Ensure backend root & src on sys.path BEFORE importing src.* ---
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -92,6 +94,11 @@ def _bootstrap_db():  # noqa: D401
     Postgres path: migrations + seed handled in pytest_configure (early) for gevent safety.
     SQLite fallback: drop/create metadata here then seed.
     """
+    # Lightweight unit-test path: allow tests that only touch pure model logic (no DB I/O)
+    # to bypass expensive DDL / dialect incompatibilities (e.g. Postgres UUID types on SQLite).
+    if os.getenv("SKIP_DB_BOOTSTRAP") == "1":  # set in specific unit test modules
+        yield
+        return
     if not os.getenv("TEST_DB_URL"):
         from src.config.database import drop_database_tables, create_database_tables  # noqa: WPS433
         drop_database_tables()
@@ -116,7 +123,8 @@ def event_loop():
 @pytest_asyncio.fixture
 async def async_client() -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
     """Async HTTP client for tests (no auth)."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
  # (Removed legacy auth_headers fixture; use auth_client fixture instead)
@@ -155,16 +163,42 @@ def _apply_migrations_and_seed():
         return
     # Derive sync URL
     sync_url = test_db_url
+    # Driver normalization logic:
+    # - If asyncpg provided, convert to a sync driver (prefer psycopg; asyncpg not usable sync)
+    # - If psycopg provided, keep it (psycopg v3 supports sync + async). Only swap to pg8000 if installed & desired.
+    # - If plain postgresql:// keep it as-is (SQLAlchemy will pick default psycopg/psycopg2) unless pg8000 explicitly present.
     if sync_url.startswith("postgresql+asyncpg://"):
         sync_url = sync_url.replace(
-            "postgresql+asyncpg://", "postgresql+pg8000://", 1)
+            "postgresql+asyncpg://", "postgresql+psycopg://", 1)
     elif sync_url.startswith("postgresql+psycopg://"):
+        try:  # optionally upgrade to pg8000 only if available
+            import importlib.util  # noqa: WPS433
+            if importlib.util.find_spec("pg8000") is not None:
+                sync_url = sync_url.replace(
+                    "postgresql+psycopg://", "postgresql+pg8000://", 1)
+        except Exception:  # noqa: BLE001
+            pass
+    elif sync_url.startswith("postgresql://"):
+        # Force psycopg driver explicitly to avoid implicit psycopg2 import when only psycopg v3 is installed
+        # (psycopg2-binary optional; we prefer modern driver).
         sync_url = sync_url.replace(
-            "postgresql+psycopg://", "postgresql+pg8000://", 1)
-    elif sync_url.startswith("postgresql://") and "+pg8000" not in sync_url:
-        sync_url = sync_url.replace("postgresql://", "postgresql+pg8000://", 1)
+            "postgresql://", "postgresql+psycopg://", 1)
 
-    # Run migrations programmatically
+    # Ensure required extensions exist prior to running migrations so uuid/gen functions are available
+    from sqlalchemy import create_engine, text as _text  # noqa: WPS433
+    tmp_engine = create_engine(sync_url)
+    try:
+        with tmp_engine.connect() as conn:  # noqa: SIM117
+            for ext in ("uuid-ossp", "pgcrypto"):
+                try:  # Attempt quietly; permissions may differ in CI
+                    conn.execute(
+                        _text(f'CREATE EXTENSION IF NOT EXISTS "{ext}"'))
+                except Exception:  # noqa: BLE001
+                    pass
+    finally:
+        tmp_engine.dispose()
+
+    # Run migrations programmatically (after extension ensure step)
     from alembic.config import Config  # inline import to avoid global dependency
     from alembic import command
     from sqlalchemy import create_engine
@@ -215,7 +249,8 @@ async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa:
     import os as _os
     # Fast path: construct a faux token when FAST_TESTS enabled to avoid auth route + bcrypt cost
     if _os.getenv("FAST_TESTS") == "1":
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             # Minimal payload expected by downstream dependency (simulate created user id=1)
             fake_token = "test.fast.token"
             client.headers.update({
@@ -225,7 +260,8 @@ async def auth_client(db_session) -> AsyncGenerator[AsyncClient, None]:  # noqa:
             yield client
             return
     await _ensure_admin(db_session)
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "admin123"})
         assert resp.status_code == 200, resp.text
         body = resp.json()
@@ -249,7 +285,8 @@ async def auth_headers(db_session):  # noqa: D401
     """
     await _ensure_admin(db_session)
     from httpx import AsyncClient as _AsyncClient  # local import to avoid confusion
-    async with _AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with _AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/v1/auth/login", json={"email": "admin@example.com", "password": "admin123"})
         assert resp.status_code == 200, resp.text
         body = resp.json()

@@ -1,5 +1,8 @@
+from src.models.database import Customer
 import pytest
-from backend.src.models.database import Customer
+import os
+# Avoid full DB DDL for pure model validation
+os.environ.setdefault("SKIP_DB_BOOTSTRAP", "1")
 
 # Unit test skeleton (T037) covering edge mobile normalization logic.
 

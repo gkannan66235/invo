@@ -108,9 +108,9 @@ class User(Base):
     is_admin = Column(Boolean, default=False, nullable=False)
     last_login = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     # Relationships
     roles = relationship("Role", secondary=user_roles, back_populates="users")
@@ -137,9 +137,9 @@ class Role(Base):
     permissions = Column(JSONB, default=list)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     # Relationships
     users = relationship("User", secondary=user_roles, back_populates="roles")
@@ -172,9 +172,9 @@ class Customer(Base):
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     # Relationships
     orders = relationship("Order", back_populates="customer")
@@ -241,9 +241,9 @@ class Supplier(Base):
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     # Relationships
     inventory_items = relationship("InventoryItem", back_populates="supplier")
@@ -297,9 +297,9 @@ class InventoryItem(Base):
     # Status and metadata
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     # Relationships
     supplier = relationship("Supplier", back_populates="inventory_items")
@@ -358,7 +358,7 @@ class Order(Base):
 
     # Order details
     order_date = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     expected_delivery_date = Column(DateTime(timezone=True))
     actual_delivery_date = Column(DateTime(timezone=True))
 
@@ -383,9 +383,9 @@ class Order(Base):
 
     # Status and metadata
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     created_by = Column(PostgresUUID(as_uuid=True), ForeignKey('users.id'))
 
     # Relationships
@@ -426,7 +426,8 @@ class OrderItem(Base):
     __tablename__ = 'order_items'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=sa.text('gen_random_uuid()'))
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     order_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
         'orders.id'), nullable=False, index=True)
     inventory_item_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
@@ -470,7 +471,8 @@ class Invoice(Base):
     __tablename__ = 'invoices'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=sa.text('gen_random_uuid()'))
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     invoice_number = Column(String(50), unique=True,
                             nullable=False, index=True)
     order_id = Column(PostgresUUID(as_uuid=True),
@@ -479,8 +481,9 @@ class Invoice(Base):
         'customers.id'), nullable=False, index=True)
 
     # Invoice details
+    # Use ANSI SQL CURRENT_TIMESTAMP (works on SQLite & Postgres) instead of now() for cross-dialect tests
     invoice_date = Column(DateTime(timezone=True),
-                          server_default=sa.text('now()'), nullable=False)
+                          server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     due_date = Column(DateTime(timezone=True))
 
     # Amounts
@@ -515,9 +518,9 @@ class Invoice(Base):
     # Soft delete flag (T026)
     is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
-        'now()'), onupdate=sa.text('now()'), nullable=False)
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     # Relationships
     order = relationship("Order", back_populates="invoices")
@@ -569,7 +572,8 @@ class InvoiceLine(Base):
     __tablename__ = 'invoice_lines'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=sa.text('gen_random_uuid()'))
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
         'invoices.id', ondelete='CASCADE'), nullable=False, index=True)
     description = Column(Text, nullable=False)
@@ -577,7 +581,7 @@ class InvoiceLine(Base):
     unit_price = Column(Numeric(12, 2), nullable=False)
     line_total = Column(Numeric(14, 2), nullable=False)
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     invoice = relationship("Invoice", back_populates="lines")
 
@@ -597,14 +601,15 @@ class InvoiceDownloadAudit(Base):
     __tablename__ = 'invoice_download_audit'
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True,
-                server_default=sa.text('gen_random_uuid()'))
+                default=_uuid_default if TESTING else None,
+                server_default=None if TESTING else sa.text('gen_random_uuid()'))
     invoice_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
         'invoices.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
         'users.id', ondelete='SET NULL'), nullable=True, index=True)
     action = Column(String(10), nullable=False)  # 'print' or 'pdf'
     created_at = Column(DateTime(timezone=True),
-                        server_default=sa.text('now()'), nullable=False)
+                        server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
 
     invoice = relationship("Invoice", back_populates="downloads")
     user = relationship("User")

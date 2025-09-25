@@ -63,15 +63,33 @@ else:
         # Use psycopg (v3) driver which is installed; avoids psycopg2 dependency
         raw_url = f'postgresql+psycopg://{user}:{password}@{host}:{port}/{name}'
 
-# Convert any Postgres URL to pg8000 (pure Python) for Alembic to avoid system selector issues
+"""Driver normalization.
+
+Historically we forced pg8000 to avoid macOS selector issues with async drivers.
+However pg8000 may not be installed in all dev/test environments, leading to
+ModuleNotFoundError during migrations. The strategy now:
+
+1. Convert +asyncpg to +psycopg (sync-capable) always.
+2. If pg8000 IS installed, optionally upgrade to +pg8000 for pure-Python safety.
+3. Otherwise leave the URL as-is (psycopg or plain postgresql://).
+"""
+import importlib.util as _ilu  # type: ignore  # noqa: E402
+
+
+def _has_mod(name: str) -> bool:  # noqa: D401
+    return _ilu.find_spec(name) is not None
+
+
 if raw_url.startswith('postgresql+asyncpg://'):
     raw_url = raw_url.replace('postgresql+asyncpg://',
-                              'postgresql+pg8000://', 1)
-elif raw_url.startswith('postgresql+psycopg://'):
-    raw_url = raw_url.replace('postgresql+psycopg://',
-                              'postgresql+pg8000://', 1)
-elif raw_url.startswith('postgresql://') and '+pg8000' not in raw_url:
-    raw_url = raw_url.replace('postgresql://', 'postgresql+pg8000://', 1)
+                              'postgresql+psycopg://', 1)
+
+if '+pg8000://' not in raw_url and _has_mod('pg8000'):
+    if raw_url.startswith('postgresql+psycopg://'):
+        raw_url = raw_url.replace(
+            'postgresql+psycopg://', 'postgresql+pg8000://', 1)
+    elif raw_url.startswith('postgresql://'):
+        raw_url = raw_url.replace('postgresql://', 'postgresql+pg8000://', 1)
 
 config.set_main_option('sqlalchemy.url', raw_url)
 

@@ -18,7 +18,13 @@ from datetime import datetime, UTC
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment
+from src.models.database import (
+    Invoice,
+    Customer,
+    PaymentStatus,
+    GSTTreatment,
+    InvoiceDownloadAudit,
+)
 from sqlalchemy.exc import IntegrityError
 from src.utils.errors import OverpayNotAllowed, ERROR_CODES
 from src.config.settings import get_default_gst_rate
@@ -158,6 +164,9 @@ async def create_invoice_service(
                 notes=notes,
                 terms_and_conditions=payload.get("terms_and_conditions"),
                 payment_status=PaymentStatus.PENDING.value,
+                branding_snapshot={"currency": "INR"},
+                gst_rate_snapshot=gst_rate,
+                settings_snapshot={"default_gst_rate": get_default_gst_rate()},
             )
             db.add(invoice)
             await db.commit()
@@ -286,3 +295,36 @@ async def delete_invoice_service(db: AsyncSession, invoice_id: UUID) -> bool:
         await db.commit()
         await db.refresh(invoice)
     return changed
+
+
+async def record_invoice_download(
+    db: AsyncSession,
+    invoice_id: UUID,
+    user_id: Optional[UUID],
+    action: str,
+) -> InvoiceDownloadAudit:
+    """Record an invoice download/print action in the audit log.
+
+    Parameters:
+        invoice_id: Target invoice UUID
+        user_id: User performing the action (may be None)
+        action: 'print' or 'pdf'
+
+    Raises:
+        ValueError: if action invalid
+        InvoiceNotFound: if invoice doesn't exist
+    """
+    if action not in {"print", "pdf"}:
+        raise ValueError("Invalid action; must be 'print' or 'pdf'")
+    result = await db.execute(select(Invoice.id).where(Invoice.id == invoice_id))
+    if not result.scalar_one_or_none():
+        raise InvoiceNotFound("Invoice not found")
+    audit = InvoiceDownloadAudit(
+        invoice_id=invoice_id,
+        user_id=user_id,
+        action=action,
+    )
+    db.add(audit)
+    await db.commit()
+    await db.refresh(audit)
+    return audit
