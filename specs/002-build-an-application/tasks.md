@@ -129,7 +129,7 @@ Group C (observability after T028):
 ### Phase 8: Expanded Coverage & Performance Hardening
 
 - [x] T057 Contract test: Invoice number format & uniqueness `INV-YYYYMMDD-NNNN` (File: `backend/tests/contract/test_invoice_numbering.py`). (Maps FR-005)
-- [ ] T058 Integration test: `created_at` immutable; `updated_at` changes on update (File: `backend/tests/integration/test_invoice_timestamps.py`). (Maps FR-019)
+- [x] T058 Integration test: `created_at` immutable; `updated_at` changes on update (File: `backend/tests/integration/test_invoice_timestamps.py`). (Maps FR-019)
 - [ ] T059 Performance test: invoice creation p95 <300ms (File: `backend/tests/performance/test_invoice_creation_perf.py`). (Maps NFR-002)
 - [ ] T060 Security test: bcrypt hash cost factor >=12 (File: `backend/tests/unit/test_password_hash_cost.py`). (Maps NFR-009)
 - [ ] T061 Unit test: Monetary rounding HALF_UP edge cases (.005, .004, large values) (File: `backend/tests/unit/test_rounding.py`). (Maps NFR-011)

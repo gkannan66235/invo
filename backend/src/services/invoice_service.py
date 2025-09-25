@@ -228,6 +228,10 @@ def _apply_update(invoice: Invoice, payload: Dict[str, Any]):
                 invoice.payment_status = PaymentStatus.PENDING.value
         elif status_map == 'cancelled':
             invoice.is_cancelled = True
+    # Manually touch updated_at to ensure the timestamp reflects mutation in tests
+    # (Database onupdate may not fire in some SQLite memory/fallback modes during tests.)
+    from datetime import datetime, UTC as _UTC
+    invoice.updated_at = datetime.now(_UTC)
 
 
 async def update_invoice_service(
