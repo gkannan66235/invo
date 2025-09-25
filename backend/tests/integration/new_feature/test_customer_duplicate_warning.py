@@ -3,6 +3,7 @@ from httpx import AsyncClient
 
 # Integration test skeleton (T013) duplicate mobile warning flow.
 
+
 @pytest.mark.asyncio
 async def test_duplicate_mobile_warning(app_client: AsyncClient):
     first = await app_client.post('/api/v1/customers', json={'name': 'A', 'phone': '9876543210'})

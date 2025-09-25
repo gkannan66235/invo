@@ -4,6 +4,7 @@ from httpx import AsyncClient
 # Contract test skeleton for Invoices API (T009)
 # Ensures INR currency semantics & snapshot placeholders presence.
 
+
 @pytest.mark.asyncio
 async def test_create_invoice_includes_snapshots(app_client: AsyncClient, seeded_customer_id):
     # Create minimal invoice payload (lines will be introduced later)
@@ -24,12 +25,14 @@ async def test_create_invoice_includes_snapshots(app_client: AsyncClient, seeded
     assert 'gst_rate_snapshot' in data
     assert 'settings_snapshot' in data
 
+
 @pytest.mark.asyncio
 async def test_list_invoices_customer_filter(app_client: AsyncClient, seeded_customer_id):
     r = await app_client.get(f'/api/v1/invoices?customer_id={seeded_customer_id}')
     assert r.status_code == 200
     invoices = r.json()
     assert isinstance(invoices, list)
+
 
 @pytest.mark.asyncio
 async def test_invoice_detail_includes_lines(app_client: AsyncClient, seeded_invoice_id):

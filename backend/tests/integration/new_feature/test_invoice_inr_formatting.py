@@ -3,6 +3,7 @@ from httpx import AsyncClient
 
 # Integration test skeleton (T014) verifying invoice INR totals.
 
+
 @pytest.mark.asyncio
 async def test_invoice_amounts_in_inr(app_client: AsyncClient, seeded_customer_id):
     payload = {

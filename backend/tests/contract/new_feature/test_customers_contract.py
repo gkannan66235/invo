@@ -5,6 +5,7 @@ from httpx import AsyncClient
 # Focus: list/create/get/update with duplicate mobile warning flag.
 # Will initially fail until service & router implemented.
 
+
 @pytest.mark.asyncio
 async def test_create_customer_duplicate_warning_flag(app_client: AsyncClient):
     # Create first customer
@@ -22,7 +23,9 @@ async def test_create_customer_duplicate_warning_flag(app_client: AsyncClient):
     # Expect success but body contains duplicate_warning true
     assert r2.status_code in (200, 201)
     body2 = r2.json()
-    assert body2.get('duplicate_warning') is True, 'Expected duplicate_warning true for normalized match'
+    assert body2.get(
+        'duplicate_warning') is True, 'Expected duplicate_warning true for normalized match'
+
 
 @pytest.mark.asyncio
 async def test_list_customers_includes_normalized_mobile(app_client: AsyncClient):
@@ -34,6 +37,7 @@ async def test_list_customers_includes_normalized_mobile(app_client: AsyncClient
         sample = data[0]
         # Expect mobile_normalized field present (even if null for legacy)
         assert 'mobile_normalized' in sample
+
 
 @pytest.mark.asyncio
 async def test_update_customer_mobile_normalizes(app_client: AsyncClient):

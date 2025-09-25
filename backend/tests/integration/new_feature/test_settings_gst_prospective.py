@@ -4,6 +4,7 @@ from httpx import AsyncClient
 # Integration test skeleton (T016) Settings change prospective GST effect.
 # Placeholder: we record old rate then set new and expect subsequent invoice to use new rate snapshot.
 
+
 @pytest.mark.asyncio
 async def test_gst_rate_change_affects_future_invoice(app_client: AsyncClient, seeded_customer_id):
     r_get = await app_client.get('/api/v1/settings')
