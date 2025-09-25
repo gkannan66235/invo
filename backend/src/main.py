@@ -27,6 +27,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.exc import SQLAlchemyError  # DB-specific error mapping (T051)
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config.database import (
@@ -407,9 +408,30 @@ def setup_exception_handlers(app: FastAPI) -> None:
             }
         )
 
+    # Database errors: map any SQLAlchemyError (base for DBAPI/operational errors) to standardized DB_ERROR (T051)
+    @app.exception_handler(SQLAlchemyError)
+    async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):  # noqa: D401
+        logger.error("Database error: %s", exc, exc_info=True)
+        try:
+            performance_monitor.record_error()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover
+            pass
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "error": {
+                    "code": "DB_ERROR",
+                    "message": "A database error occurred"
+                },
+                "timestamp": time.time(),
+                "path": str(request.url.path)
+            }
+        )
+
     @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
-        """Handle unexpected exceptions."""
+    async def general_exception_handler(request: Request, exc: Exception):  # noqa: D401
+        """Fallback handler for unexpected non-DB exceptions."""
         logger.error("Unhandled exception: %s", exc, exc_info=True)
         try:  # Best-effort error metric increment
             performance_monitor.record_error()  # type: ignore[attr-defined]

@@ -115,7 +115,7 @@ Group C (observability after T028):
 - [x] T048 Contract test: Expired JWT returns 401 AUTH_TOKEN_EXPIRED (File: `backend/tests/contract/test_auth_token_expired.py`). (Maps NFR-008)
 - [x] T049 Unit test: Payment status downgrade after amount/gst edit (File: `backend/tests/unit/test_payment_status_downgrade.py`). (Maps FR-008)
 - [x] T050 Unit test: Normalization of camelCase & numeric strings (File: `backend/tests/unit/test_invoice_normalization.py`). (Maps FR-013/FR-014/FR-020)
-- [ ] T051 Integration test: Simulated DB failure returns standardized DB_ERROR (File: `backend/tests/integration/test_db_failure_resilience.py`). (Maps NFR-010)
+- [x] T051 Integration test: Simulated DB failure returns standardized DB_ERROR (File: `backend/tests/integration/test_db_failure_resilience.py`). (Maps NFR-010)
 - [ ] T052 Service layer unit tests post-refactor (File: `backend/tests/unit/test_invoice_service_refactored.py`). (Depends: T037)
 - [ ] T053 Unit test: Cancelled invoice invariants (only allowed fields editable; payments still permitted) (File: `backend/tests/unit/test_cancel_invariants.py`). (Maps FR-016, FR-017)
 - [ ] T054 Metrics test: Counters increment after operations (File: `backend/tests/integration/test_metrics_counters.py`). (Depends: T028, T032; Maps NFR-007)
