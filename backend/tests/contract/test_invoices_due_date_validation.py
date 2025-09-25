@@ -42,11 +42,13 @@ async def test_invoice_update_invalid_due_date(auth_client: AsyncClient):
     }
     create_resp = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.text
-    inv_id = create_resp.json()["data"]["id"] if create_resp.json().get("data") else create_resp.json()["id"]
+    inv_id = create_resp.json()["data"]["id"] if create_resp.json().get(
+        "data") else create_resp.json()["id"]
 
     # Attempt invalid update
     patch_resp = await auth_client.patch(
-        f"/api/v1/invoices/{inv_id}", json={"due_date": "2025-02-30T10:00:00"}  # invalid day
+        # invalid day
+        f"/api/v1/invoices/{inv_id}", json={"due_date": "2025-02-30T10:00:00"}
     )
     assert patch_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, patch_resp.text
     body = patch_resp.json()
