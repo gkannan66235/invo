@@ -17,7 +17,8 @@ import pytest
 
 
 METRIC_NAME = "invoice_operations_total"
-METRIC_LINE_RE = re.compile(r'^invoice_operations_total\{operation="(?P<op>[a-z_]+)"}\s+(?P<value>[0-9]+(?:\.[0-9]+)?)$')
+METRIC_LINE_RE = re.compile(
+    r'^invoice_operations_total\{operation="(?P<op>[a-z_]+)"}\s+(?P<value>[0-9]+(?:\.[0-9]+)?)$')
 
 
 def _parse_invoice_operation_metrics(metrics_text: str) -> Dict[str, float]:

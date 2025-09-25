@@ -63,4 +63,5 @@ async def test_invoice_number_format_and_sequence(auth_client):  # noqa: D401
 
     assert date1 == utc_today, f"Expected first invoice date {utc_today} got {date1}"
     assert date2 == utc_today, f"Expected second invoice date {utc_today} got {date2}"
-    assert seq2 == seq1 + 1, f"Expected second sequence {seq1 + 1} got {seq2} (first={seq1})"
+    assert seq2 == seq1 + \
+        1, f"Expected second sequence {seq1 + 1} got {seq2} (first={seq1})"
