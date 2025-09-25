@@ -123,6 +123,7 @@ Group C (observability after T028):
 ### Phase 7: Remediation (Coverage & Clarifications)
 
 - [ ] T055 Contract test: PATCH non-existent invoice returns 404 `INVOICE_NOT_FOUND` (File: `backend/tests/contract/test_invoices_update_not_found.py`). (Maps FR-023)
+- [x] T055 Contract test: PATCH non-existent invoice returns 404 `INVOICE_NOT_FOUND` (File: `backend/tests/contract/test_invoices_update_not_found.py`). (Maps FR-023)
 - [ ] T056 Unit test: Unknown extra fields dropped & absent in response (File: `backend/tests/unit/test_invoice_unknown_fields.py`). (Maps FR-013)
 
 ### Phase 8: Expanded Coverage & Performance Hardening
