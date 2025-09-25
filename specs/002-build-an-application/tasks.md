@@ -107,7 +107,7 @@ Group C (observability after T028):
 
 ### Phase 6: Clarification-Driven Additions
 
-- [ ] T044 Contract test: GET /api/v1/invoices/{id} detail includes required fields & editable after payments (File: `backend/tests/contract/test_invoices_detail.py`). (Maps FR-017, FR-008)
+- [x] T044 Contract test: GET /api/v1/invoices/{id} detail includes required fields & editable after payments (File: `backend/tests/contract/test_invoices_detail.py`). (Maps FR-017, FR-008)
 - [ ] T045 Contract + integration tests: Soft delete hides from list but detail accessible (File: `backend/tests/contract/test_invoices_soft_delete.py`, `backend/tests/integration/test_invoices_soft_delete_flow.py`). (Depends: T026/T027; Maps FR-018)
 - [x] T045 Contract + integration tests: Soft delete hides from list but detail accessible (File: `backend/tests/contract/test_invoices_soft_delete.py`, `backend/tests/integration/test_invoices_soft_delete_flow.py`). (Depends: T026/T027; Maps FR-018)
 - [x] T046 Contract test: Omitted gst_rate applies DEFAULT_GST_RATE env (File: `backend/tests/contract/test_invoices_default_gst.py`). (Maps FR-022)

@@ -308,6 +308,7 @@ def _to_frontend_invoice(invoice: Invoice, customer: Optional[Customer] = None) 
         "gst_rate": float(invoice.gst_rate) if invoice.gst_rate is not None else None,
         "gst_amount": float(invoice.gst_amount),
         "total_amount": float(invoice.total_amount),
+        "paid_amount": float(invoice.paid_amount or 0),
         # Map directly (frontend will adapt later)
         "status": invoice.payment_status,
         "created_at": invoice.created_at.isoformat() if invoice.created_at else None,
@@ -377,6 +378,31 @@ async def create_invoice(
 
 
 @router.get('/{invoice_id}')
+async def get_invoice_detail(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_async_db_dependency),
+    _current_user: User = Depends(get_current_user)
+):
+    """Retrieve single invoice detail including payment + soft delete flags.
+
+    Returns the same normalized structure as list endpoint but includes paid_amount.
+    """
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        from src.utils.errors import ERROR_CODES  # local import
+        # type: ignore[index]
+        code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])
+        raise HTTPException(status_code=404, detail="Invoice not found", headers={
+                            "X-Error-Code": code})
+
+    customer = None
+    if invoice.customer_id:
+        cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
+        customer = cust_res.scalar_one_or_none()
+    return _success(_to_frontend_invoice(invoice, customer))
+
+
 async def get_invoice(
     invoice_id: UUID,
     db: AsyncSession = Depends(get_async_db_dependency),

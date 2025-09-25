@@ -45,4 +45,5 @@ async def test_invoice_detail_round_trip(auth_client: AsyncClient):
     assert resp2.status_code == 200
     detail2 = resp2.json()["data"]
     assert detail2["payment_status"].lower() == "paid"
-    assert float(detail2["paid_amount"]) == float(detail2["total_amount"])  # fully paid
+    assert float(detail2["paid_amount"]) == float(
+        detail2["total_amount"])  # fully paid
