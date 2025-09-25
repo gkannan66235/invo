@@ -190,9 +190,14 @@ def _apply_update(invoice: Invoice, payload: Dict[str, Any]):
         if paid < 0 or paid > float(invoice.total_amount):
             raise OverpayNotAllowed(paid, float(invoice.total_amount))
         invoice.paid_amount = paid
-        if invoice.paid_amount == invoice.total_amount:
+        # Normalize comparison using rounding to 2 decimals to avoid float/Decimal precision mismatch
+        total_val = float(invoice.total_amount)
+        paid_val = float(invoice.paid_amount or 0)
+        # Treat as fully paid if within 0.005 (half cent) after rounding to 2 decimals
+        if round(abs(total_val - paid_val), 4) <= 0.0005:
+            invoice.paid_amount = total_val  # snap to canonical total
             invoice.payment_status = PaymentStatus.PAID.value
-        elif invoice.paid_amount > 0:
+        elif paid_val > 0:
             invoice.payment_status = PaymentStatus.PARTIAL.value
         else:
             invoice.payment_status = PaymentStatus.PENDING.value
