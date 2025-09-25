@@ -277,19 +277,6 @@ class InvoiceResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# Helpers
-
-
-async def _generate_invoice_number(db: AsyncSession) -> str:
-    from datetime import UTC
-    now_utc = datetime.now(UTC)
-    today = now_utc.strftime('%Y%m%d')
-    # Count invoices for today to increment
-    start_of_day = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-    result = await db.execute(select(Invoice).where(Invoice.invoice_date >= start_of_day))
-    count = len(result.scalars().all()) + 1
-    return f"INV{today}{count:04d}"  # e.g. INV20250924 0001
-
 # Routes
 
 
