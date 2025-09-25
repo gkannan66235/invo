@@ -277,6 +277,7 @@ To execute a task (conceptual examples):
 Purpose: Deliver core backend functionality (customers, invoices with INR & snapshots, settings, minimal PDF + audit, duplicate warning) quickly while deferring inventory, full PDF polish, frontend UI, and performance benchmarking.
 
 ### Included Task IDs
+
 - Setup/Foundation: T001, T002 (skip T003/T004 for later unless trivial)
 - Migrations & Models: T005, T006 (Inventory table optional – can defer)
 - Contract Tests: T007, T009, T010, T011 (skip T008)
@@ -288,6 +289,7 @@ Purpose: Deliver core backend functionality (customers, invoices with INR & snap
 - Validation & Wrap: T040 (partial – ignore performance gating), T041 (partial quickstart results for scenarios 1–5 only)
 
 ### Deferred to Later Sprints
+
 - Inventory (T008, T019, T025, related UI tasks)
 - Soft-delete access control test (T017)
 - Full PDF styling/caching & performance test (T030, advanced part of T021)
@@ -296,6 +298,7 @@ Purpose: Deliver core backend functionality (customers, invoices with INR & snap
 - Docs & polish (T038, T039 full scope)
 
 ### Sprint Acceptance Criteria
+
 1. All included contract & integration tests pass.
 2. Creating second customer with same normalized mobile returns `duplicate_warning=true`.
 3. Invoice creation returns currency='INR' and stores snapshot placeholders.
@@ -305,6 +308,7 @@ Purpose: Deliver core backend functionality (customers, invoices with INR & snap
 7. Mobile normalization unit tests pass (T037).
 
 ### Recommended Execution Order
+
 1. T001 → T002 → T005 → T006
 2. Author failing tests: T007, T009, T010, T011, T012–T016, T037
 3. Implement services/endpoints: T018 → T020 → T022 → T024 → T026 → T021 (stub) → T023 (sync) → T027 → T028 → T029 (partial)
@@ -312,6 +316,7 @@ Purpose: Deliver core backend functionality (customers, invoices with INR & snap
 5. Execute quickstart scenarios 1–5 (T041 partial) and record outcomes.
 
 ### Notes
+
 - PDF service (T021) may initially return a simple PDF (e.g., generated via minimal HTML + headless Chromium) without full styling or caching.
 - Audit logging (T023) synchronous now; can be optimized later with background tasks.
 - If Inventory model/table deferred, adjust migration (T005) to exclude it to reduce scope.

@@ -23,8 +23,11 @@ def generate_invoice_pdf(invoice_id: str, total: Optional[str] = None) -> bytes:
     """
     text = f"Invoice {invoice_id} Generated (placeholder) Total: {total or 'N/A'}"
     # Minimal PDF text object (not production grade)
-    stream_content = f"BT /F1 12 Tf 12 100 Td ({text}) Tj ET".encode("latin-1", "ignore")
-    body = _PDF_BODY_TEMPLATE.format(length=len(stream_content), stream=stream_content.decode("latin-1"), start=300+len(stream_content))
+    stream_content = f"BT /F1 12 Tf 12 100 Td ({text}) Tj ET".encode(
+        "latin-1", "ignore")
+    body = _PDF_BODY_TEMPLATE.format(length=len(
+        stream_content), stream=stream_content.decode("latin-1"), start=300+len(stream_content))
     return _PDF_PREAMBLE + body.encode("latin-1")
+
 
 __all__ = ["generate_invoice_pdf"]
