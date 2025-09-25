@@ -25,7 +25,7 @@ async def test_invoice_number_daily_sequence_reset(auth_client: AsyncClient, mon
     assert r1.status_code == 201, r1.text
     data1 = r1.json().get("data", r1.json())
     inv1 = data1["invoice_number"]
-    m1 = re.fullmatch(r"INV(\d{8})(\d{4})", inv1)
+    m1 = re.fullmatch(r"INV-(\d{8})-(\d{4})", inv1)
     assert m1, inv1
     date_part_1, seq_part_1 = m1.group(1), int(m1.group(2))
     assert seq_part_1 >= 1
@@ -53,7 +53,7 @@ async def test_invoice_number_daily_sequence_reset(auth_client: AsyncClient, mon
     assert r2.status_code == 201, r2.text
     data2 = r2.json().get("data", r2.json())
     inv2 = data2["invoice_number"]
-    m2 = re.fullmatch(r"INV(\d{8})(\d{4})", inv2)
+    m2 = re.fullmatch(r"INV-(\d{8})-(\d{4})", inv2)
     assert m2, inv2
     date_part_2, seq_part_2 = m2.group(1), int(m2.group(2))
 

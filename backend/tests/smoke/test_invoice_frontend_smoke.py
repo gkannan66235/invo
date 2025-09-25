@@ -8,12 +8,12 @@ from httpx import AsyncClient
 async def test_frontend_style_invoice_creation_sequence(auth_client: AsyncClient):
     """Smoke test: create two invoices using ONLY frontend-style camelCase fields.
 
-    Validates:
-      - Endpoint accepts camelCase payload without backend snake_case keys
-      - Computed GST and total amounts are correct
-      - Invoice number pattern INVYYYYMMDDNNNN
-      - Sequential numbering increments by 1 for consecutive creations in same day
-      - Normalization stores gstRate numeric string correctly
+        Validates:
+            - Endpoint accepts camelCase payload without backend snake_case keys
+            - Computed GST and total amounts are correct
+            - Invoice number pattern INV-YYYYMMDD-NNNN
+            - Sequential numbering increments by 1 for consecutive creations in same day
+            - Normalization stores gstRate numeric string correctly
     """
     payload1 = {
         "customerName": "Smoke Customer A",
@@ -34,7 +34,8 @@ async def test_frontend_style_invoice_creation_sequence(auth_client: AsyncClient
     assert data1["payment_status"].lower() == "pending"
 
     inv_num1 = data1["invoice_number"]
-    assert re.fullmatch(r"INV\d{8}\d{4}", inv_num1), inv_num1
+    # FR-005 compliant format with dashes: INV-YYYYMMDD-NNNN
+    assert re.fullmatch(r"INV-\d{8}-\d{4}", inv_num1), inv_num1
 
     # Second invoice to verify increment
     payload2 = {
@@ -48,7 +49,7 @@ async def test_frontend_style_invoice_creation_sequence(auth_client: AsyncClient
     data2 = r2.json().get("data", r2.json())
 
     inv_num2 = data2["invoice_number"]
-    assert re.fullmatch(r"INV\d{8}\d{4}", inv_num2), inv_num2
+    assert re.fullmatch(r"INV-\d{8}-\d{4}", inv_num2), inv_num2
 
     # Extract the sequence (last 4 digits) and compare
     seq1 = int(inv_num1[-4:])
