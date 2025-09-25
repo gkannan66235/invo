@@ -7,7 +7,7 @@ Phase 3 Adjustments (Tasks T019, T021, T028):
 """
 from datetime import datetime
 from uuid import uuid4
-from typing import Optional
+from typing import Optional, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,6 +26,16 @@ try:  # Prefer src.* imports; fallback adds backend dir to path
         invoice_delete_counter,
         record_invoice_operation,
     )
+    from src.services.invoice_service import (
+        create_invoice_service,
+        get_invoice_service,
+        update_invoice_service,
+        delete_invoice_service,
+        InvoiceNotFound,
+        ValidationError,
+        CustomerNotFound,
+        OverpayNotAllowed as ServiceOverpayNotAllowed,
+    )
 except ImportError:
     import sys
     from pathlib import Path
@@ -41,6 +51,16 @@ except ImportError:
         invoice_update_counter,
         invoice_delete_counter,
         record_invoice_operation,
+    )
+    from src.services.invoice_service import (
+        create_invoice_service,
+        get_invoice_service,
+        update_invoice_service,
+        delete_invoice_service,
+        InvoiceNotFound,
+        ValidationError,
+        CustomerNotFound,
+        OverpayNotAllowed as ServiceOverpayNotAllowed,
     )
 from .auth import get_current_user, User
 
@@ -337,99 +357,22 @@ async def create_invoice(
     payload: InvoiceCreate,
     db: AsyncSession = Depends(get_async_db_dependency),
     _current_user: User = Depends(get_current_user)
-):  # _current_user used only for auth gating
-    # Determine creation path
-    customer: Optional[Customer] = None
-    if not payload.customer_id:
-        # Frontend style - must have customer_name & phone & amount
-        if not (payload.customer_name and payload.customer_phone and payload.amount is not None):
-            # Raise validation style HTTPException with code attribute consumed by global handler
-            exc = HTTPException(
-                status_code=422, detail="Missing required customer or amount fields")
-            # annotate for handler
-            setattr(exc, 'code', ERROR_CODES['validation'])
-            raise exc
-
-        # Try to find existing customer by name+phone
-        existing = await db.execute(
-            select(Customer).where(
-                Customer.name == payload.customer_name,
-                Customer.phone == payload.customer_phone
-            )
-        )
-        customer = existing.scalar_one_or_none()
-        if not customer:
-            customer = Customer(
-                name=payload.customer_name,
-                phone=payload.customer_phone,
-                email=payload.customer_email,
-                customer_type='individual',
-                is_active=True,
-                address={},
-            )
-            db.add(customer)
-            await db.flush()  # Get customer.id
-        customer_id = customer.id
-        subtotal = float(payload.amount)
-        # Apply default GST if omitted (T023)
-        # Distinguish between omitted/None (use default) vs explicit provided value (could be 0)
-        if payload.gst_rate is None:
-            effective_gst_rate = get_default_gst_rate()
-            gst_rate = float(effective_gst_rate)
-        else:
-            gst_rate = float(payload.gst_rate)
-        gst_amount = round(subtotal * (gst_rate or 0) / 100, 2)
-        total_amount = round(subtotal + gst_amount, 2)
-        place_of_supply = payload.place_of_supply or 'KA'
-        notes = payload.service_description or payload.notes
-    else:
-        # Backend style
-        customer_id = payload.customer_id
-        # Fetch customer
-        cust_res = await db.execute(select(Customer).where(Customer.id == customer_id))
-        customer = cust_res.scalar_one_or_none()
-        if not customer:
-            exc = HTTPException(status_code=404, detail='Customer not found')
-            setattr(exc, 'code', ERROR_CODES['not_found'])
-            raise exc
-        subtotal = float(payload.subtotal or 0)
-        gst_amount = float(payload.gst_amount or 0)
-        total_amount = float(payload.total_amount or (subtotal + gst_amount))
-        place_of_supply = payload.place_of_supply or 'KA'
-        notes = payload.notes
-        # Provide gst_rate for parity with frontend branch (default 0 if omitted)
-        gst_rate = float(
-            payload.gst_rate) if payload.gst_rate is not None else 0.0
-
-    invoice_number = await _generate_invoice_number(db)
-
-    invoice = Invoice(
-        id=uuid4(),  # Explicit UUID to avoid relying on Postgres gen_random_uuid() in SQLite tests
-        invoice_number=invoice_number,
-        customer_id=customer_id,
-        subtotal=subtotal,
-        discount_amount=payload.discount_amount,
-        gst_amount=gst_amount,
-        total_amount=total_amount,
-        paid_amount=0,
-        gst_rate=gst_rate,
-        service_type=payload.service_type,
-        place_of_supply=place_of_supply,
-        gst_treatment=payload.gst_treatment or GSTTreatment.TAXABLE.value,
-        reverse_charge=payload.reverse_charge,
-        due_date=payload.due_date,
-        notes=notes,
-        terms_and_conditions=payload.terms_and_conditions,
-        payment_status=PaymentStatus.PENDING.value,
-    )
-    db.add(invoice)
-    await db.commit()
-    await db.refresh(invoice)
-    # Emit creation metric (if instrumentation active)
+):
+    try:
+        created = await create_invoice_service(db, payload.model_dump())
+    except ValidationError as exc:  # type: ignore[attr-defined]
+        http_exc = HTTPException(status_code=422, detail=str(exc))
+        setattr(http_exc, 'code', ValidationError.code)
+        raise http_exc
+    except CustomerNotFound as exc:  # backend style path
+        http_exc = HTTPException(status_code=404, detail=str(exc))
+        setattr(http_exc, 'code', CustomerNotFound.code)
+        raise http_exc
+    # Metrics
     if invoice_create_counter:  # type: ignore[attr-defined]
-        invoice_create_counter.add(1, {"place_of_supply": place_of_supply})
+        invoice_create_counter.add(1, {"place_of_supply": created.invoice.place_of_supply})
     record_invoice_operation("create")
-    return _success(_to_frontend_invoice(invoice, customer))
+    return _success(_to_frontend_invoice(created.invoice, created.customer))
 
 
 @router.get('/{invoice_id}')
@@ -437,20 +380,14 @@ async def get_invoice(
     invoice_id: UUID,
     db: AsyncSession = Depends(get_async_db_dependency),
     _current_user: User = Depends(get_current_user)
-):  # _current_user used only for auth gating
-    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
-    invoice = result.scalar_one_or_none()
-    if not invoice:
-        exc = HTTPException(status_code=404, detail='Invoice not found')
-        setattr(exc, 'code', ERROR_CODES.get(
-            'invoice_not_found', ERROR_CODES['not_found']))
-        raise exc
-    # Fetch customer
-    cust = None
-    if invoice.customer_id:
-        cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
-        cust = cust_res.scalar_one_or_none()
-    return _success(_to_frontend_invoice(invoice, cust))
+):
+    try:
+        invoice, customer = await get_invoice_service(db, invoice_id)
+    except InvoiceNotFound as exc:
+        http_exc = HTTPException(status_code=404, detail=str(exc))
+        setattr(http_exc, 'code', InvoiceNotFound.code)
+        raise http_exc
+    return _success(_to_frontend_invoice(invoice, customer))
 
 
 def _apply_update(invoice: Invoice, payload: InvoiceUpdate):
@@ -518,31 +455,21 @@ def _apply_update(invoice: Invoice, payload: InvoiceUpdate):
             invoice.is_cancelled = True
 
 
-async def _update_invoice_logic(
-    invoice_id: UUID,
-    payload: InvoiceUpdate,
-    db: AsyncSession
-):
-    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
-    invoice = result.scalar_one_or_none()
-    if not invoice:
-        exc = HTTPException(status_code=404, detail='Invoice not found')
-        setattr(exc, 'code', ERROR_CODES.get(
-            'invoice_not_found', ERROR_CODES['not_found']))
-        raise exc
-    _apply_update(invoice, payload)
-    await db.commit()
-    await db.refresh(invoice)
-    # Emit update metric
+async def _update_invoice_logic(invoice_id: UUID, payload: InvoiceUpdate, db: AsyncSession):
+    try:
+        invoice, customer = await update_invoice_service(db, invoice_id, payload.model_dump())
+    except InvoiceNotFound as exc:
+        http_exc = HTTPException(status_code=404, detail=str(exc))
+        setattr(http_exc, 'code', InvoiceNotFound.code)
+        raise http_exc
+    except ServiceOverpayNotAllowed as exc:  # domain overpay
+        http_exc = HTTPException(status_code=400, detail=exc.message)  # type: ignore[attr-defined]
+        setattr(http_exc, 'code', exc.code)  # type: ignore[attr-defined]
+        raise http_exc
     if invoice_update_counter:  # type: ignore[attr-defined]
-        invoice_update_counter.add(
-            1, {"payment_status": invoice.payment_status})
+        invoice_update_counter.add(1, {"payment_status": invoice.payment_status})
     record_invoice_operation("update")
-    cust = None
-    if invoice.customer_id:
-        cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
-        cust = cust_res.scalar_one_or_none()
-    return _to_frontend_invoice(invoice, cust)
+    return _to_frontend_invoice(invoice, customer)
 
 
 @router.patch('/{invoice_id}')
@@ -573,19 +500,14 @@ async def delete_invoice(
     invoice_id: UUID,
     db: AsyncSession = Depends(get_async_db_dependency),
     _current_user: User = Depends(get_current_user)
-):  # _current_user used only for auth gating
-    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
-    invoice = result.scalar_one_or_none()
-    if not invoice:
-        exc = HTTPException(status_code=404, detail='Invoice not found')
-        setattr(exc, 'code', ERROR_CODES.get(
-            'invoice_not_found', ERROR_CODES['not_found']))
-        raise exc
-    # Soft delete (T026): mark as deleted but retain record
-    if not invoice.is_deleted:
-        invoice.is_deleted = True
-        await db.commit()
-        await db.refresh(invoice)
+):
+    try:
+        changed = await delete_invoice_service(db, invoice_id)
+    except InvoiceNotFound as exc:
+        http_exc = HTTPException(status_code=404, detail=str(exc))
+        setattr(http_exc, 'code', InvoiceNotFound.code)
+        raise http_exc
+    if changed:
         if invoice_delete_counter:  # type: ignore[attr-defined]
             invoice_delete_counter.add(1, {})
         record_invoice_operation("delete")
