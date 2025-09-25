@@ -73,8 +73,8 @@ Contract & scenario tests created before (or refactored in place). Existing impl
 - [x] T040 [P] Coverage report verification & thresholds gate CI (File: `.github/workflows/ci.yml`). (Depends: T004, tests complete)
   - Note: Post-implementation stabilization included unifying async DB session fixtures to resolve teardown hang (no new task ID assigned; recorded for traceability).
 - [x] T041 [P] Performance optimization pass (DB indices on invoice date, payment status) (File: `backend/alembic/versions/20250925_0003_add_perf_indexes.py`). (Depends: profiling results T018) # Added partial & date indexes + COUNT optimization.
-- [ ] T042 [P] Accessibility checklist update for frontend forms (File: `frontend/docs/accessibility.md`).
-- [ ] T043 [P] Final constitutional compliance audit log (File: `specs/002-build-an-application/compliance-report.md`).
+- [x] T042 [P] Accessibility checklist update for frontend forms (File: `frontend/docs/accessibility.md`).
+- [x] T043 [P] Final constitutional compliance audit log (File: `specs/002-build-an-application/compliance-report.md`).
 
 ## Dependencies Summary
 
