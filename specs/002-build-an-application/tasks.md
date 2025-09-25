@@ -118,7 +118,7 @@ Group C (observability after T028):
 - [x] T051 Integration test: Simulated DB failure returns standardized DB_ERROR (File: `backend/tests/integration/test_db_failure_resilience.py`). (Maps NFR-010)
 - [ ] T052 Service layer unit tests post-refactor (File: `backend/tests/unit/test_invoice_service_refactored.py`). (Depends: T037)
 - [ ] T053 Unit test: Cancelled invoice invariants (only allowed fields editable; payments still permitted) (File: `backend/tests/unit/test_cancel_invariants.py`). (Maps FR-016, FR-017)
-- [ ] T054 Metrics test: Counters increment after operations (File: `backend/tests/integration/test_metrics_counters.py`). (Depends: T028, T032; Maps NFR-007)
+- [x] T054 Metrics test: Counters increment after operations (File: `backend/tests/integration/test_metrics_counters.py`). (Depends: T028, T032; Maps NFR-007)
 
 ### Phase 7: Remediation (Coverage & Clarifications)
 
