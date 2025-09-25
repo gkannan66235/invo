@@ -19,6 +19,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment
+from sqlalchemy.exc import IntegrityError
 from src.utils.errors import OverpayNotAllowed, ERROR_CODES
 from src.config.settings import get_default_gst_rate
 
@@ -77,15 +78,16 @@ async def create_invoice_service(
     db: AsyncSession,
     payload: Dict[str, Any],
 ) -> CreatedInvoice:
-    """Create an invoice from normalized payload.
+    """Create an invoice from normalized payload with concurrency-safe numbering.
 
-    Payload is expected to already have normalization applied (router's pydantic model).
+    Implements optimistic retry on unique constraint collisions for invoice_number.
+    Avoids heavy-weight table locks / sequence tables while ensuring FR-005 sequential format.
     """
+    # Preprocess / resolve customer first (outside retry loop).
     customer: Optional[Customer] = None
     if not payload.get("customer_id"):
         if not (payload.get("customer_name") and payload.get("customer_phone") and payload.get("amount") is not None):
             raise ValidationError("Missing required customer or amount fields")
-        # Try existing customer
         existing = await db.execute(
             select(Customer).where(
                 Customer.name == payload["customer_name"],
@@ -103,16 +105,16 @@ async def create_invoice_service(
                 address={},
             )
             db.add(customer)
-            await db.flush()
+            await db.flush()  # obtain id
         customer_id = customer.id
-        subtotal = float(payload["amount"])  # field already validated
+        subtotal = float(payload["amount"])  # validated upstream
         if payload.get("gst_rate") is None:
             gst_rate = float(get_default_gst_rate())
         else:
             gst_rate = float(payload.get("gst_rate") or 0)
-        gst_amount = round(subtotal * (gst_rate or 0)/100, 2)
+        gst_amount = round(subtotal * (gst_rate or 0) / 100, 2)
         total_amount = round(subtotal + gst_amount, 2)
-        place_of_supply = payload.get("place_of_supply") or 'KA'
+        place_of_supply = payload.get("place_of_supply") or "KA"
         notes = payload.get("service_description") or payload.get("notes")
     else:
         customer_id = payload["customer_id"]
@@ -122,37 +124,55 @@ async def create_invoice_service(
             raise CustomerNotFound("Customer not found")
         subtotal = float(payload.get("subtotal") or 0)
         gst_amount = float(payload.get("gst_amount") or 0)
-        total_amount = float(payload.get("total_amount")
-                             or (subtotal + gst_amount))
-        place_of_supply = payload.get("place_of_supply") or 'KA'
+        total_amount = float(payload.get("total_amount") or (subtotal + gst_amount))
+        place_of_supply = payload.get("place_of_supply") or "KA"
         notes = payload.get("notes")
         gst_rate = float(payload.get("gst_rate") or 0.0)
 
-    invoice_number = await _generate_invoice_number(db)
-    invoice = Invoice(
-        id=uuid4(),
-        invoice_number=invoice_number,
-        customer_id=customer_id,
-        subtotal=subtotal,
-        discount_amount=payload.get("discount_amount") or 0,
-        gst_amount=gst_amount,
-        total_amount=total_amount,
-        paid_amount=0,
-        gst_rate=gst_rate,
-        service_type=payload.get("service_type"),
-        place_of_supply=place_of_supply,
-        gst_treatment=payload.get(
-            "gst_treatment") or GSTTreatment.TAXABLE.value,
-        reverse_charge=payload.get("reverse_charge") or False,
-        due_date=payload.get("due_date"),
-        notes=notes,
-        terms_and_conditions=payload.get("terms_and_conditions"),
-        payment_status=PaymentStatus.PENDING.value,
-    )
-    db.add(invoice)
-    await db.commit()
-    await db.refresh(invoice)
-    return CreatedInvoice(invoice=invoice, customer=customer)
+    # Worst-case concurrent creation: each loser of unique constraint race will retry
+    # at most once per successfully committed invoice preceding it. For N parallel
+    # creators, the final invoice could require N attempts. Choose a generous cap
+    # (64) to accommodate bursts while preventing infinite loops on persistent faults.
+    MAX_RETRIES = 64
+    last_err: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            invoice_number = await _generate_invoice_number(db)
+            invoice = Invoice(
+                id=uuid4(),
+                invoice_number=invoice_number,
+                customer_id=customer_id,
+                subtotal=subtotal,
+                discount_amount=payload.get("discount_amount") or 0,
+                gst_amount=gst_amount,
+                total_amount=total_amount,
+                paid_amount=0,
+                gst_rate=gst_rate,
+                service_type=payload.get("service_type"),
+                place_of_supply=place_of_supply,
+                gst_treatment=payload.get("gst_treatment") or GSTTreatment.TAXABLE.value,
+                reverse_charge=payload.get("reverse_charge") or False,
+                due_date=payload.get("due_date"),
+                notes=notes,
+                terms_and_conditions=payload.get("terms_and_conditions"),
+                payment_status=PaymentStatus.PENDING.value,
+            )
+            db.add(invoice)
+            await db.commit()
+            await db.refresh(invoice)
+            return CreatedInvoice(invoice=invoice, customer=customer)
+        except IntegrityError as ie:  # likely duplicate invoice_number under race
+            await db.rollback()
+            last_err = ie
+            if attempt == MAX_RETRIES:
+                raise ie  # bubble up after exhausting retries
+            # continue loop to regenerate with updated count
+        except Exception as e:  # noqa: BLE001
+            await db.rollback()
+            raise e
+    if last_err:  # defensive: should not reach due to return/raise inside loop
+        raise last_err
+    raise RuntimeError("Failed to create invoice after retries (unexpected fallthrough)")
 
 
 async def get_invoice_service(db: AsyncSession, invoice_id: UUID) -> Tuple[Invoice, Optional[Customer]]:
