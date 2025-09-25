@@ -31,11 +31,16 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://gst_user:gst_password_2023@database:5432/gst_service_center
+      # Use synchronous driver for primary SQLAlchemy engine; async URL is derived automatically
+      DATABASE_URL: postgresql+psycopg://gst_user:gst_password_2023@database:5432/gst_service_center
       SECRET_KEY: your-secret-key-change-in-production
       ENVIRONMENT: development
       LOG_LEVEL: INFO
       CORS_ORIGINS: http://localhost:3000,http://frontend:3000
+      # Seed an initial admin user (entrypoint script will create if missing)
+      SEED_ADMIN_USERNAME: admin
+      SEED_ADMIN_EMAIL: admin@example.com
+      SEED_ADMIN_PASSWORD: admin123
     ports:
       - "8000:8000"
     volumes:

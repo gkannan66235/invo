@@ -8,5 +8,8 @@ if [ ! -d "alembic/versions" ] || [ -z "$(ls -A alembic/versions)" ]; then
 fi
 alembic upgrade head || { echo "[entrypoint] Migration failed"; exit 1; }
 
+echo "[entrypoint] Seeding initial data (admin user if missing)..."
+python scripts/seed_users.py || echo "[entrypoint] Seed script encountered an error (continuing)"
+
 echo "[entrypoint] Starting application..."
 exec uvicorn src.main:app --host 0.0.0.0 --port 8000
