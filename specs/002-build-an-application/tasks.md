@@ -69,7 +69,7 @@ Contract & scenario tests created before (or refactored in place). Existing impl
  - [x] T036 [P] Add unit tests for payment transitions logic (File: `backend/tests/unit/test_payment_status.py`).
  - [x] T037 [P] Refactor duplication in invoices router (extract service layer) (File: `backend/src/services/invoice_service.py`). (Depends: T021)
  - [x] T038 [P] Add service layer unit tests (File: `backend/tests/unit/test_invoice_service.py`). (Depends: T037)
-- [ ] T039 [P] Documentation update: API endpoints & examples (File: `docs/api/invoices.md`). (Depends: T021)
+ - [x] T039 [P] Documentation update: API endpoints & examples (File: `docs/api/invoices.md`). (Depends: T021)
 - [ ] T040 [P] Coverage report verification & thresholds gate CI (File: `.github/workflows/ci.yml`). (Depends: T004, tests complete)
 - [ ] T041 [P] Performance optimization pass (DB indices on invoice date, payment status) (File: `backend/alembic/versions/<new>.py`). (Depends: profiling results T018)
 - [ ] T042 [P] Accessibility checklist update for frontend forms (File: `frontend/docs/accessibility.md`).
