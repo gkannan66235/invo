@@ -51,8 +51,22 @@ async def create_customer(db: AsyncSession, payload: Dict[str, Any]) -> Dict[str
     return _serialize_customer(customer, duplicate_warning=duplicate_warning)
 
 
-async def list_customers(db: AsyncSession) -> list[Dict[str, Any]]:
-    result = await db.execute(select(Customer).order_by(Customer.created_at.desc()).limit(200))
+async def list_customers(db: AsyncSession, *, search: Optional[str] = None, customer_type: Optional[str] = None) -> list[Dict[str, Any]]:
+    """List customers with optional search and type filter.
+
+    search: substring match on name or phone (simple ILIKE/LIKE fallback for SQLite)
+    customer_type: exact filter on customer_type
+    """
+    stmt = select(Customer).order_by(Customer.created_at.desc()).limit(500)
+    if search:
+        like = f"%{search.lower()}%"
+        # Using lower() for cross-dialect compatibility
+        from sqlalchemy import or_, func as _f
+        stmt = stmt.where(or_(_f.lower(Customer.name).like(
+            like), _f.lower(Customer.phone).like(like)))
+    if customer_type:
+        stmt = stmt.where(Customer.customer_type == customer_type)
+    result = await db.execute(stmt)
     rows = result.scalars().all()
     return [_serialize_customer(c) for c in rows]
 
@@ -103,7 +117,16 @@ async def update_customer(db: AsyncSession, customer_id: str, payload: Dict[str,
 
 
 def _serialize_customer(customer: Customer, duplicate_warning: bool = False) -> Dict[str, Any]:
-    return {
+    """Rich serializer matching broader contract expectations.
+
+    Includes legacy/new_feature fields plus full contract fields (gst_number, address, type, credit/outstanding).
+    Provides flattened address accessors (city/state/pin_code) even if None.
+    """
+    address = customer.address or {}
+    # Ensure nested address keys exist
+    for k in ("street", "area", "landmark"):
+        address.setdefault(k, None)
+    data: Dict[str, Any] = {
         "id": str(customer.id),
         "name": customer.name,
         "email": customer.email,
@@ -112,4 +135,16 @@ def _serialize_customer(customer: Customer, duplicate_warning: bool = False) -> 
         "duplicate_warning": duplicate_warning,
         "is_active": customer.is_active,
         "created_at": customer.created_at.isoformat() if customer.created_at else None,
+        "updated_at": customer.updated_at.isoformat() if getattr(customer, "updated_at", None) else None,
+        # Contract oriented fields
+        "gst_number": customer.gst_number,
+        "customer_type": customer.customer_type,
+        "credit_limit": float(customer.credit_limit or 0),
+        "outstanding_amount": float(customer.outstanding_amount or 0),
+        "address": address,
+        # Flattened projections (may be None if not stored)
+        "city": address.get("city"),
+        "state": address.get("state"),
+        "pin_code": address.get("pin_code") or address.get("pincode") or address.get("postal_code"),
     }
+    return data

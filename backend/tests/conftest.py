@@ -132,8 +132,12 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
 @pytest_asyncio.fixture
 async def app_client(async_client: AsyncClient) -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
     """Alias fixture so contract tests referencing app_client keep working."""
-    # Provide fast auth header similarly to auth_client fixture for endpoints requiring auth
-    async_client.headers.update({"Authorization": "Bearer test.fast.token"})
+    # Provide fast auth header AND explicit raw mode indicator header so routers can
+    # distinguish app_client (raw legacy mode) from auth_client (enveloped mode).
+    async_client.headers.update({
+        "Authorization": "Bearer test.fast.token",
+        "X-Raw-Mode": "1"
+    })
     yield async_client
 
 

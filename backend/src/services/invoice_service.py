@@ -59,17 +59,31 @@ class CreatedInvoice:
 
 
 async def _generate_invoice_number(db: AsyncSession) -> str:
+    """Generate next invoice number using max sequence for the day.
+
+    Avoids reliance on invoice_date (which may use server defaults) by parsing existing invoice_number.
+    Format: INV-YYYYMMDD-NNNN
+    """
     now_utc = datetime.now(UTC)
     today = now_utc.strftime('%Y%m%d')
-    start_of_day = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-    # Use COUNT aggregate instead of pulling all rows to reduce memory + network overhead.
+    prefix = f"INV-{today}-"
+    # Fetch max existing sequence for today based on invoice_number pattern
+    from sqlalchemy import desc
     result = await db.execute(
-        select(func.count(Invoice.id)).where(
-            Invoice.invoice_date >= start_of_day)
+        select(Invoice.invoice_number)
+        .where(Invoice.invoice_number.like(f"{prefix}%"))
+        .order_by(desc(Invoice.invoice_number))
+        .limit(1)
     )
-    count = int(result.scalar_one() or 0) + 1
-    # FR-005 format compliance: INV-YYYYMMDD-NNNN (dashes as delimiters)
-    return f"INV-{today}-{count:04d}"
+    last = result.scalar_one_or_none()
+    if last:
+        try:
+            seq_part = int(last.rsplit('-', 1)[-1]) + 1
+        except ValueError:
+            seq_part = 1
+    else:
+        seq_part = 1
+    return f"{prefix}{seq_part:04d}"
 
 
 def _recompute_amounts(invoice: Invoice):
