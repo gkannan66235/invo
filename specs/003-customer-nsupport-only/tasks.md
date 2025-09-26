@@ -228,7 +228,7 @@ T038. Documentation: `docs/api/customers.md`, update invoices doc with PDF endpo
 - File(s): `docs/api/customers.md`, `docs/api/invoices.md`
 - Dependencies: T024 T027 T029
 
-T039. Update README and feature spec progress checklist (mark tasks & artifacts) [P]
+T039. Update README and feature spec progress checklist (mark tasks & artifacts) [P] [X]
 
 - File(s): `README.md`, `specs/003-customer-nsupport-only/spec.md`
 - Dependencies: T038

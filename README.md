@@ -2,6 +2,26 @@
 
 Backend + frontend application with PostgreSQL, FastAPI, Next.js, Alembic migrations, and Docker Compose.
 
+## Feature Slice: Customer & INR Invoicing (Branch `003-customer-nsupport-only`)
+
+Implemented (backend vertical slice):
+
+- Customer management with Indian mobile validation & normalization (+91/91 prefix stripping, digits 6–9 start) and non-blocking duplicate warning (see `docs/api/customers.md`).
+- Invoice creation/list/retrieve/update/delete (soft delete) with per-day sequential numbering & snapshot fields (branding/GST placeholders).
+- PDF download endpoint (stub minimal PDF) with audit logging table `invoice_download_audit` and metrics counters (`invoice_download_total`, `pdf_generate_total`).
+- Observability counters & histograms (create/update/delete pdf_generate_duration) exposed via Prometheus/OpenTelemetry if configured.
+- Audit logging for each PDF download (FR-017) and Indian currency formatting utility (`backend/src/utils/indian_format.py`).
+- Settings/GST default application (prospective: only new invoices use updated GST).
+
+Documentation:
+
+- Customers API: `docs/api/customers.md`
+- Invoices API: `docs/api/invoices.md`
+
+Upcoming (remaining tasks): Performance tests (PDF p95, duplicate lookup), final README/spec polish, quickstart scenario log (T030, T040, T041).
+
+Quick links to spec artifacts: `specs/003-customer-nsupport-only/` (spec, tasks, plan, data-model).
+
 ## Quick Start (Development)
 
 ```bash
@@ -97,3 +117,4 @@ Future Postgres-backed test runs can enable parity by exporting `TEST_DB_URL` an
 - Remove legacy `create_database_tables_async()` from startup once all environments use migrations.
 - Introduce migration-based test fixture.
 - Add additional schema features (invoice numbering, constraints, etc.).
+- Complete performance benchmarks (PDF generation p95 < 2s, duplicate lookup <50ms) and finalize documentation checklist.

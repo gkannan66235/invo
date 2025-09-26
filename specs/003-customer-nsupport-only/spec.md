@@ -2,7 +2,7 @@
 
 **Feature Branch**: `003-customer-nsupport-only`  
 **Created**: 2025-09-25  
-**Status**: Draft  
+**Status**: In Progress (Backend slice largely implemented; docs & performance validation pending)  
 **Input**: User description: "Customer:\nSupport only india mobile number & address\nInvoice:\nUse Indian Rupees\nAble to print/ download invoice\nModule to manage Inventory, customer and Settings"
 
 ## User Scenarios & Testing _(mandatory)_
@@ -127,11 +127,11 @@ Assumptions Added:
 - [x] User scenarios defined
 - [x] Requirements generated
 - [x] Entities identified
-- [ ] Review checklist passed (pending clarifications)
+- [ ] Review checklist passed (pending clarifications / UX & accessibility verification)
 
 ---
 
-SUCCESS: Specification finalized (assumptions accepted as confirmed by user). Ready for planning.
+Progress Note (2025-09-26): Core backend services, routers, migrations, metrics, and documentation for Customers & Invoices implemented (see `docs/api/*`). Remaining: performance benchmarks (NFR-002, NFR-006), frontend UI modules, final accessibility review, and quickstart scenario execution log.
 
 ## Clarifications
 
