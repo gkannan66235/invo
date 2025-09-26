@@ -29,12 +29,12 @@ T002. Backend dependency review: add Playwright dependency & PDF helper placehol
 - File(s): `backend/requirements.txt` (or introduce optional extras), new `backend/src/services/pdf_service.py`
 - Dependency: T001
 
-T003. Add lint/test pre-commit hooks update (ruff/black config confirm) [P]
+T003. Add lint/test pre-commit hooks update (ruff/black config confirm) [P] [X]
 
 - File(s): `.pre-commit-config.yaml` (if exists) or create
 - Dependency: T001
 
-T004. Confirm observability config extensibility for new metrics (pdf_generate, invoice_download, customer_duplicate_warning) [P]
+T004. Confirm observability config extensibility for new metrics (pdf_generate, invoice_download, customer_duplicate_warning) [P] [X]
 
 - File(s): `backend/src/config/observability.py`
 - Dependency: T001

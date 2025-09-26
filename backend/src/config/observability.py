@@ -362,6 +362,24 @@ try:  # Guard in case metrics backend not fully configured
         name="auth_login_failed_total",
         description="Total number of failed login attempts"
     )
+    # New feature-specific metrics (T004): PDF generation, invoice downloads, duplicate warnings
+    pdf_generate_counter = _domain_meter.create_counter(
+        name="pdf_generate_total",
+        description="Total number of invoice PDFs generated"
+    )
+    pdf_generate_duration = _domain_meter.create_histogram(
+        name="pdf_generate_duration_ms",
+        description="Duration of PDF generation in ms",
+        unit="ms"
+    )
+    invoice_download_counter = _domain_meter.create_counter(
+        name="invoice_download_total",
+        description="Total number of invoice downloads (pdf/print)"
+    )
+    customer_duplicate_warning_counter = _domain_meter.create_counter(
+        name="customer_duplicate_warning_total",
+        description="Total number of customer create attempts triggering duplicate warning"
+    )
 except Exception as instrumentation_error:  # noqa: BLE001
     # Intentional broad catch: metrics subsystem is optional; proceed without counters
     invoice_create_counter = None  # type: ignore
@@ -369,6 +387,10 @@ except Exception as instrumentation_error:  # noqa: BLE001
     invoice_delete_counter = None  # type: ignore
     auth_login_counter = None  # type: ignore
     auth_login_failed_counter = None  # type: ignore
+    pdf_generate_counter = None  # type: ignore
+    pdf_generate_duration = None  # type: ignore
+    invoice_download_counter = None  # type: ignore
+    customer_duplicate_warning_counter = None  # type: ignore
 
 __all__ = [
     "configure_observability",
@@ -389,6 +411,10 @@ __all__ = [
     "invoice_delete_counter",
     "auth_login_counter",
     "auth_login_failed_counter",
+    "pdf_generate_counter",
+    "pdf_generate_duration",
+    "invoice_download_counter",
+    "customer_duplicate_warning_counter",
     # Native helpers
     "record_invoice_operation",
 ]
