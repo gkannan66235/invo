@@ -131,6 +131,22 @@ Response: 204 style semantics but envelope returns `{ data: null }` with status 
 
 Error: `INVOICE_NOT_FOUND` (404)
 
+### Download / Generate PDF
+
+GET `/api/v1/invoices/{invoice_id}/pdf`
+
+Returns `200 OK` with `Content-Type: application/pdf` and a minimal PDF body (current sprint stub). Side effects:
+
+1. Records an audit row (`invoice_download_audit`) with action `pdf` (FR-017).
+2. Increments `invoice_download_total` counter (if metrics configured).
+
+Future (next sprint): Full HTML → PDF rendering via Playwright with Indian digit grouping applied using `format_inr` util and snapshot fields for branding and tax rate. Filename pattern (planned FR-025) `invoice-<invoice_number>-<total>.pdf` may be exposed via `Content-Disposition`.
+
+Error Cases:
+
+- Soft deleted invoice (future enforcement) → 403/404 per FR-016.
+- Missing invoice → 404 (`INVOICE_NOT_FOUND`).
+
 ## Object Model (Response Shape)
 
 Example invoice response object:
@@ -189,9 +205,19 @@ Prometheus/OpenTelemetry counters emitted:
 - `invoice_create_counter` (labels: place_of_supply)
 - `invoice_update_counter` (labels: payment_status)
 - `invoice_delete_counter` (no labels)
+- `invoice_download_total` (action pdf/print in future; currently pdf only)
+- `pdf_generate_total` & `pdf_generate_duration_ms` (histogram) — currently stub generation path trivial; instrumentation present for future full rendering
 - Native deterministic: `invoice_operations_total` (labels: operation=create|update|delete)
 
 Traces include spans for request lifecycle (middleware) and DB calls if OTEL enabled.
+
+### Audit Logging
+
+Each PDF download call writes a row to `invoice_download_audit` capturing `invoice_id`, optional `user_id`, action (`pdf`), and timestamp. This satisfies FR-017 and supports future compliance queries.
+
+### Indian Currency Formatting
+
+Server stores numeric fields as decimals; presentation formatting for PDF will use `format_inr` (see `src/utils/indian_format.py`) ensuring grouping pattern (e.g., `12,34,567.00`). API responses currently return raw numeric values; clients may apply symbol display (FR-003/FR-004). Snapshot fields (`branding_snapshot`, `gst_rate_snapshot`) ensure reproduced historical values after settings changes.
 
 ## Versioning & Stability
 

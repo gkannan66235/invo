@@ -223,7 +223,7 @@ T037. Add unit tests for mobile normalization edge cases [P] [X]
 - File(s): `backend/src/tests/unit/test_mobile_normalization.py`
 - Dependencies: T018
 
-T038. Documentation: `docs/api/customers.md`, update invoices doc with PDF endpoint & metrics [P]
+T038. Documentation: `docs/api/customers.md`, update invoices doc with PDF endpoint & metrics [P] [X]
 
 - File(s): `docs/api/customers.md`, `docs/api/invoices.md`
 - Dependencies: T024 T027 T029
