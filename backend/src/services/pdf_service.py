@@ -22,7 +22,8 @@ _PDF_TEMPLATE = ("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
                  "trailer<</Size 6/Root 1 0 R>>\nstartxref\n{start}\n%%EOF")
 
 
-def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:  # type: ignore[no-untyped-def]
+# type: ignore[no-untyped-def]
+def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:
     """Return placeholder PDF bytes for an invoice.
 
     Args:
@@ -48,10 +49,12 @@ def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:  
             parts.append("T*")  # move to next line (simplistic)
         parts.append("ET")
         stream_content = " ".join(parts).encode("latin-1", "ignore")
-        body = _PDF_TEMPLATE.format(length=len(stream_content), stream=stream_content.decode("latin-1"), start=500+len(stream_content))
+        body = _PDF_TEMPLATE.format(length=len(stream_content), stream=stream_content.decode(
+            "latin-1"), start=500+len(stream_content))
         return body.encode("latin-1")
     except Exception as exc:  # pragma: no cover
         LOGGER.error("Failed to generate stub PDF: %s", exc)
         raise RuntimeError("PDF generation failed") from exc
+
 
 __all__ = ["generate_invoice_pdf"]

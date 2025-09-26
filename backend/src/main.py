@@ -521,8 +521,8 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
                        tags=["Authentication"])
     # Real customers router already defines its own prefix (/api/v1/customers)
     app.include_router(customers_router)
-    app.include_router(
-        inventory_router, prefix="/api/v1/inventory", tags=["Inventory"])
+    # inventory_router already declares its own prefix
+    app.include_router(inventory_router)
     app.include_router(orders_router, prefix="/api/v1/orders", tags=["Orders"])
     app.include_router(
         invoice_router, prefix="/api/v1/invoices", tags=["Invoices"])

@@ -103,7 +103,7 @@ async def create_customer(payload: Dict[str, Any], current_user: User = Depends(
     return {"status": "success", "data": {"customer": customer}}
 
 
-inventory_router = APIRouter()
+inventory_router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
 _INVENTORY_ITEMS: List[Dict[str, Any]] = [
     {
@@ -124,6 +124,8 @@ _INVENTORY_ITEMS: List[Dict[str, Any]] = [
 ]
 
 
+@inventory_router.get("", status_code=status.HTTP_200_OK)
+@inventory_router.get("/", status_code=status.HTTP_200_OK)
 @inventory_router.get("/items", status_code=status.HTTP_200_OK)
 async def list_inventory_items(  # noqa: D401
         category: Optional[str] = Query(None),
@@ -163,6 +165,57 @@ async def list_inventory_items(  # noqa: D401
             },
         },
     }
+
+
+@inventory_router.post("", status_code=status.HTTP_201_CREATED)
+@inventory_router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_inventory_item(payload: Dict[str, Any], current_user: User = Depends(require_auth)):
+    required = ["product_code", "description", "hsn_code",
+                "gst_rate", "selling_price", "category"]
+    missing = [f for f in required if payload.get(f) in (None, "")]
+    if missing:
+        exc = HTTPException(
+            status_code=422, detail=f"Missing required fields: {', '.join(missing)}")
+        setattr(exc, "code", "VALIDATION_ERROR")
+        raise exc
+    # Simple uniqueness check
+    if any(i["product_code"] == payload["product_code"] for i in _INVENTORY_ITEMS):
+        exc = HTTPException(
+            status_code=400, detail="Product code already exists")
+        setattr(exc, "code", "DUPLICATE_PRODUCT_CODE")
+        raise exc
+    new_id = max([i["id"] for i in _INVENTORY_ITEMS] + [0]) + 1
+    now = datetime.now(UTC).isoformat()
+    item = {
+        "id": new_id,
+        "product_code": payload["product_code"],
+        "description": payload["description"],
+        "hsn_code": payload["hsn_code"],
+        "gst_rate": payload.get("gst_rate", 0),
+        "current_stock": payload.get("current_stock", 0),
+        "minimum_stock_level": payload.get("minimum_stock_level", 0),
+        "purchase_price": payload.get("purchase_price", 0),
+        "selling_price": payload.get("selling_price", 0),
+        "category": payload.get("category", "spare_part"),
+        "is_active": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+    _INVENTORY_ITEMS.append(item)
+    return {"status": "success", "data": {"item": item}}
+
+
+@inventory_router.patch("/{item_id}")
+async def update_inventory_item(item_id: int, payload: Dict[str, Any], current_user: User = Depends(require_auth)):
+    for item in _INVENTORY_ITEMS:
+        if item["id"] == item_id:
+            # Apply allowed fields
+            for f in ["description", "gst_rate", "current_stock", "minimum_stock_level", "purchase_price", "selling_price", "category", "is_active"]:
+                if f in payload and payload[f] is not None:
+                    item[f] = payload[f]
+            item["updated_at"] = datetime.now(UTC).isoformat()
+            return {"status": "success", "data": {"item": item}}
+    raise HTTPException(status_code=404, detail="Inventory item not found")
 
 
 orders_router = APIRouter()

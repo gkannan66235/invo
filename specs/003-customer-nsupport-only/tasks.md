@@ -41,7 +41,7 @@ T004. Confirm observability config extensibility for new metrics (pdf_generate, 
 
 ### Phase B: Data Model & Migrations (Models before services)
 
-T005. Create Alembic migration for new tables & columns:
+T005. Create Alembic migration for new tables & columns [X]:
 
 - Tables: `customer`, `inventory_item`, `invoice_line`, `invoice_download_audit`
 - Columns added to `invoice`: branding_snapshot, gst_rate_snapshot, settings_snapshot (if absent)
@@ -49,7 +49,7 @@ T005. Create Alembic migration for new tables & columns:
 - File(s): `backend/alembic/versions/<timestamp>_customer_inventory_invoice_pdf.py`
 - Dependency: T002
 
-T006. SQLAlchemy models (if not present) for Customer, InventoryItem, InvoiceLine, InvoiceDownloadAudit
+T006. SQLAlchemy models (if not present) for Customer, InventoryItem, InvoiceLine, InvoiceDownloadAudit [X]
 
 - File(s): `backend/src/models/database.py`
 - Dependency: T005

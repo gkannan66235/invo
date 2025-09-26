@@ -68,11 +68,27 @@ async def list_customers(db: AsyncSession, *, search: Optional[str] = None, cust
         stmt = stmt.where(Customer.customer_type == customer_type)
     result = await db.execute(stmt)
     rows = result.scalars().all()
-    return [_serialize_customer(c) for c in rows]
+    # Compute duplicate groups by mobile_normalized (active customers only)
+    from collections import Counter
+    mobiles = [c.mobile_normalized for c in rows if c.mobile_normalized]
+    counts = Counter(mobiles)
+    serialized: list[Dict[str, Any]] = []
+    for c in rows:
+        dup_flag = False
+        if c.mobile_normalized and counts.get(c.mobile_normalized, 0) > 1 and c.is_active:
+            dup_flag = True
+        serialized.append(_serialize_customer(c, duplicate_warning=dup_flag))
+    return serialized
 
 
 async def get_customer(db: AsyncSession, customer_id: str) -> Optional[Dict[str, Any]]:
-    res = await db.execute(select(Customer).where(Customer.id == customer_id))
+    # Ensure we pass a proper UUID object when model column uses as_uuid=True
+    try:
+        from uuid import UUID as _UUID
+        cust_uuid = _UUID(customer_id)
+    except Exception:
+        return None
+    res = await db.execute(select(Customer).where(Customer.id == cust_uuid))
     obj = res.scalar_one_or_none()
     if not obj:
         return None
