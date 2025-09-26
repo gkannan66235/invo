@@ -402,7 +402,9 @@ class Order(Base):
         CheckConstraint(
             "order_type IN ('sale', 'purchase', 'service')", name='check_valid_order_type'),
         CheckConstraint(
-            "status IN ('draft', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled')", name='check_valid_status'),
+            "status IN ('draft', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled')",
+            name='check_valid_status'
+        ),
         CheckConstraint("gst_treatment IN ('taxable', 'exempt', 'zero_rated')",
                         name='check_valid_gst_treatment'),
         Index('idx_order_date_status', 'order_date', 'status'),

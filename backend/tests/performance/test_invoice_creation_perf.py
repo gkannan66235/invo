@@ -69,9 +69,13 @@ async def test_create_invoices_p95_under_300ms(auth_client: AsyncClient):
 
     threshold_ms = 300.0
     assert p95 < threshold_ms, (
-        "Invoice creation p95 latency {:.2f}ms (mean {:.2f}ms, max {:.2f}ms) exceeded <{:.0f}ms threshold. Samples: {}".format(
-            p95, mean, max_latency, threshold_ms, [
-                f"{t:.1f}" for t in timings_sorted]
+        "Invoice creation p95 latency {:.2f}ms (mean {:.2f}ms, max {:.2f}ms) exceeded <{:.0f}ms threshold. "
+        "Samples: {}".format(
+            p95,
+            mean,
+            max_latency,
+            threshold_ms,
+            [f"{t:.1f}" for t in timings_sorted],
         )
     )
 

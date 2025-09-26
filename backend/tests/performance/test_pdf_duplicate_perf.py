@@ -18,13 +18,13 @@ async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):
     """Performance test: PDF generation latency p95 < 2000ms.
 
     Methodology:
-      1. Create a single invoice (warmup) and fetch its PDF (unmeasured warmups) to ensure any lazy imports/connections are established.
-      2. Perform N measured GET /api/v1/invoices/{id}/pdf requests collecting client-side wall-clock timings.
+      1. Warm up (create & fetch) to ensure lazy imports/connections established.
+      2. Measure N GET /api/v1/invoices/{id}/pdf requests (client wall-clock).
       3. Compute p95 (ceil(0.95*n)-1) and assert below threshold.
 
     Notes:
-      - Current implementation uses a lightweight stub generator; expected latencies are typically in the low ms range.
-      - Threshold kept generous (2s) to remain valid once real HTML->PDF implementation (e.g., Playwright) is introduced.
+      - Stub generator now; real renderer later may be slower.
+      - Threshold generous (2s) to stay valid post real implementation.
     """
 
     # 1. Create invoice
@@ -38,8 +38,12 @@ async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):
     }
     r = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert r.status_code == 201, r.text
-    invoice_id = r.json()[
-        "data"]["invoice"]["id"] if "data" in r.json() else r.json()["id"]
+    invoice_json = r.json()
+    invoice_id = (
+        invoice_json.get("data", {}).get("invoice", {}).get("id")
+        if "data" in invoice_json
+        else invoice_json.get("id")
+    )
 
     # Warmups
     WARMUPS = 3
@@ -67,12 +71,14 @@ async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):
     max_latency = max(timings_sorted)
 
     assert p95 < PDF_P95_THRESHOLD_MS, (
-        f"PDF generation p95 {p95:.2f}ms (mean {mean:.2f}ms, max {max_latency:.2f}ms) exceeded <{PDF_P95_THRESHOLD_MS:.0f}ms threshold. Samples: "
+        f"PDF generation p95 {p95:.2f}ms (mean {mean:.2f}ms, max {max_latency:.2f}ms) exceeded "
+        f"<{PDF_P95_THRESHOLD_MS:.0f}ms threshold. Samples: "
         + ",".join(f"{t:.1f}" for t in timings_sorted)
     )
 
     print(
-        f"[PERF] pdf generation p95={p95:.2f}ms mean={mean:.2f}ms max={max_latency:.2f}ms samples={len(timings_sorted)}"
+        f"[PERF] pdf generation p95={p95:.2f}ms mean={mean:.2f}ms max={max_latency:.2f}ms "
+        f"samples={len(timings_sorted)}"
     )
 
 
@@ -93,8 +99,9 @@ async def test_customer_duplicate_lookup_p95_under_50ms(auth_client: AsyncClient
       - Measuring creation (rather than isolated service call) yields end-to-end latency including DB round-trip.
       - p95 metric ensures occasional GC/network jitter does not fail the test if overall path is performant.
 
-    Caveats:
-      - Accumulating many duplicates on the same mobile is acceptable; query stops at 2 rows due to LIMIT, keeping latency flat.
+        Caveats:
+            - Accumulating many duplicates on the same mobile is acceptable; query stops at 2 rows due to LIMIT,
+                keeping latency flat.
     """
 
     base_payload = {
@@ -156,10 +163,12 @@ async def test_customer_duplicate_lookup_p95_under_50ms(auth_client: AsyncClient
     max_latency = max(timings_sorted)
 
     assert p95 < DUPLICATE_LOOKUP_P95_THRESHOLD_MS, (
-        f"Customer duplicate lookup p95 {p95:.2f}ms (mean {mean:.2f}ms, max {max_latency:.2f}ms) exceeded <{DUPLICATE_LOOKUP_P95_THRESHOLD_MS:.0f}ms threshold. Samples: "
+        f"Customer duplicate lookup p95 {p95:.2f}ms (mean {mean:.2f}ms, max {max_latency:.2f}ms) exceeded "
+        f"<{DUPLICATE_LOOKUP_P95_THRESHOLD_MS:.0f}ms threshold. Samples: "
         + ",".join(f"{t:.1f}" for t in timings_sorted)
     )
 
     print(
-        f"[PERF] customer duplicate create p95={p95:.2f}ms mean={mean:.2f}ms max={max_latency:.2f}ms samples={len(timings_sorted)}"
+        f"[PERF] customer duplicate create p95={p95:.2f}ms mean={mean:.2f}ms max={max_latency:.2f}ms "
+        f"samples={len(timings_sorted)}"
     )

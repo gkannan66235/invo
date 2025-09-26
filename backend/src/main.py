@@ -496,17 +496,31 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
         """Runtime JSON metrics (internal diagnostic view, not Prometheus format)."""
         with trace_operation("runtime_metrics"):
             db_health = await async_database_health_check()
-            monitor = performance_monitor  # global instance accumulating request metrics
-            uptime_seconds = (datetime.now(UTC) -
-                              APP_START_TIME).total_seconds()
+            # global instance accumulating request metrics
+            monitor = performance_monitor
+            uptime_seconds = (
+                datetime.now(UTC) - APP_START_TIME
+            ).total_seconds()
             return {
                 "status": "success",
                 "data": {
                     "database": db_health,
                     "performance": {
-                        "request_count": getattr(monitor, "request_count_value", getattr(monitor, "request_count", 0)),
-                        "avg_response_time_ms": getattr(monitor, "avg_response_time_ms", getattr(monitor, "avg_response_time", 0)),
-                        "error_count": getattr(monitor, "error_count_value", getattr(monitor, "error_count", 0)),
+                        "request_count": getattr(
+                            monitor,
+                            "request_count_value",
+                            getattr(monitor, "request_count", 0),
+                        ),
+                        "avg_response_time_ms": getattr(
+                            monitor,
+                            "avg_response_time_ms",
+                            getattr(monitor, "avg_response_time", 0),
+                        ),
+                        "error_count": getattr(
+                            monitor,
+                            "error_count_value",
+                            getattr(monitor, "error_count", 0),
+                        ),
                         "uptime_seconds": uptime_seconds,
                     },
                     "service": {

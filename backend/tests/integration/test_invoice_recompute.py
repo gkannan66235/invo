@@ -7,13 +7,13 @@ pytestmark = [pytest.mark.integration]
 
 @pytest.mark.asyncio
 async def test_invoice_recompute_on_amount_and_gst_change(auth_client: AsyncClient):
-    """T015: Updating amount and gst_rate recomputes gst_amount & total_amount without losing payment status semantics.
+    """T015: Recompute gst_amount & total_amount keeps payment status semantics.
 
     Steps:
-      1. Create invoice with amount=100, gst_rate=18 -> gst=18.00, total=118.00
-      2. PATCH invoice with amount=200, gst_rate=12 -> expect gst=24.00, total=224.00
-      3. PATCH invoice with partial payment (e.g., paid_amount=50) -> status partial
-      4. PATCH invoice adjusting amount down (150) and gst_rate up (18) -> recompute gst=27.00 total=177.00, payment status should remain partial (since paid < total) and NOT auto-paid
+      1. Create invoice amount=100, gst_rate=18 -> gst=18, total=118
+      2. PATCH amount=200, gst_rate=12 -> gst=24, total=224
+      3. PATCH partial payment (paid_amount=50) -> status partial
+      4. PATCH amount down (150) & gst_rate up (18) -> gst=27 total=177, status stays partial
     """
     create_payload = {
         "customer_name": "RecomputeUser",

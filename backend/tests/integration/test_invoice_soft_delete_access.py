@@ -4,12 +4,12 @@ from fastapi import status
 
 pytestmark = [pytest.mark.integration]
 
-"""T017 Integration Test: Cancelled vs soft-deleted invoice access control.
+"""T017: Cancelled vs soft-deleted invoice access control.
 
 Expectations:
-- Soft-deleted invoice still retrievable via GET detail (flag is_deleted True) but excluded from list.
-- Cancelled invoice (is_cancelled True) still appears in list (business rule: visibility retained) and detail accessible.
-- Attempting payment update on a cancelled invoice should be rejected (future refinement) -- for now we just ensure status persists.
+- Soft-deleted: detail accessible (is_deleted True) but excluded from list.
+- Cancelled: remains in list and detail accessible (visibility retained).
+- Payment update on cancelled invoice: future refinement (status persistence checked only).
 """
 
 
@@ -28,7 +28,10 @@ async def test_invoice_soft_delete_vs_cancel_access(auth_client: AsyncClient):
     assert r1.status_code == status.HTTP_201_CREATED, r1.text
     inv1 = r1.json().get("data", r1.json())
 
-    r2 = await auth_client.post("/api/v1/invoices/", json=base_payload | {"customer_phone": "9000011112", "amount": 140})
+    r2 = await auth_client.post(
+        "/api/v1/invoices/",
+        json=base_payload | {"customer_phone": "9000011112", "amount": 140},
+    )
     assert r2.status_code == status.HTTP_201_CREATED, r2.text
     inv2 = r2.json().get("data", r2.json())
 

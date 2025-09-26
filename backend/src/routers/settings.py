@@ -9,7 +9,9 @@ router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
 
 @router.get("", status_code=status.HTTP_200_OK)
-async def get_app_settings(db: AsyncSession = Depends(get_async_db)) -> Dict[str, Any]:  # noqa: ARG001
+async def get_app_settings(
+    db: AsyncSession = Depends(get_async_db),  # noqa: ARG001
+) -> Dict[str, Any]:
     """Return application settings relevant to invoices.
 
     Currently only exposes gst_default_rate (float). Future fields can be added while
@@ -22,7 +24,10 @@ async def get_app_settings(db: AsyncSession = Depends(get_async_db)) -> Dict[str
 
 
 @router.patch("", status_code=status.HTTP_200_OK)
-async def patch_app_settings(payload: Dict[str, Any], db: AsyncSession = Depends(get_async_db)) -> Dict[str, Any]:  # noqa: ARG001
+async def patch_app_settings(
+    payload: Dict[str, Any],
+    db: AsyncSession = Depends(get_async_db),  # noqa: ARG001
+) -> Dict[str, Any]:
     """Update mutable settings fields.
 
     For now only gst_default_rate is accepted (in-memory live reload). A production

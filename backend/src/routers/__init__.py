@@ -12,7 +12,7 @@ from datetime import datetime, UTC
 import re
 import math
 from uuid import uuid4
-from .auth import get_current_user, User
+from .auth import User  # get_current_user not needed in this placeholder module
 
 
 def _pagination_stub() -> Dict[str, Any]:  # Consistent empty pagination shape
@@ -83,16 +83,17 @@ async def create_customer(payload: Dict[str, Any], _current_user: User = Depends
         raise exc
     now = datetime.now(UTC).isoformat()
     cid = len(_CUSTOMERS) + 1
+    base_addr = payload.get("address", {})
     customer: Dict[str, Any] = {
         "id": cid,
         "name": payload["name"],
         "email": payload.get("email"),
         "phone": payload.get("phone"),
         "gst_number": gst_number,
-        "address": payload.get("address", {"street": "", "area": "", "landmark": ""}),
-        "city": payload.get("address", {}).get("city"),
-        "state": payload.get("address", {}).get("state"),
-        "pin_code": payload.get("address", {}).get("pin_code"),
+        "address": base_addr or {"street": "", "area": "", "landmark": ""},
+        "city": base_addr.get("city") if isinstance(base_addr, dict) else None,
+        "state": base_addr.get("state") if isinstance(base_addr, dict) else None,
+        "pin_code": base_addr.get("pin_code") if isinstance(base_addr, dict) else None,
         "customer_type": payload.get("customer_type", "business"),
         "is_active": True,
         "credit_limit": float(payload.get("credit_limit", 0.0)),
@@ -132,7 +133,11 @@ async def list_inventory_items(  # noqa: D401
     # Fetch more than we need to derive total without a separate count (cap 5 pages worth)
     fetch_limit = min(page_size * 5, 500)
     raw_items = await svc_list_inventory_items(
-        db, category=category, search=search, low_stock=low_stock or False, limit=fetch_limit
+        db,
+        category=category,
+        search=search,
+        low_stock=low_stock or False,
+        limit=fetch_limit,
     )
     total_items = len(raw_items)
     start = (page - 1) * page_size
@@ -159,7 +164,11 @@ async def list_inventory_items(  # noqa: D401
 
 @inventory_router.post("", status_code=status.HTTP_201_CREATED)
 @inventory_router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_inventory_item(payload: Dict[str, Any], _current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_async_db_dependency)):  # noqa: ARG001
+async def create_inventory_item(
+    payload: Dict[str, Any],
+    _current_user: User = Depends(require_auth),  # noqa: ARG001
+    db: AsyncSession = Depends(get_async_db_dependency),
+):
     try:
         item = await svc_create_inventory_item(db, payload)
         return {"status": "success", "data": {"item": item}}
@@ -170,7 +179,12 @@ async def create_inventory_item(payload: Dict[str, Any], _current_user: User = D
 
 
 @inventory_router.patch("/{item_id}")
-async def update_inventory_item(item_id: str, payload: Dict[str, Any], _current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_async_db_dependency)):  # noqa: ARG001
+async def update_inventory_item(
+    item_id: str,
+    payload: Dict[str, Any],
+    _current_user: User = Depends(require_auth),  # noqa: ARG001
+    db: AsyncSession = Depends(get_async_db_dependency),
+):
     try:
         item = await svc_update_inventory_item(db, item_id, payload)
         return {"status": "success", "data": {"item": item}}
@@ -232,9 +246,10 @@ async def create_order(payload: Dict[str, Any], _current_user: User = Depends(re
     gst_amount_sum = round(sum(i["gst_amount"] for i in order_items), 2)
     total_amount = round(subtotal + gst_amount_sum, 2)
     now = datetime.now(UTC).isoformat()
+    ts_part = datetime.now(UTC).strftime('%Y%m%d%H%M%S')
     order_dict = {
         "id": str(uuid4()),
-        "order_number": f"ORD{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}{len(_ORDERS)+1:03d}",
+        "order_number": f"ORD{ts_part}{len(_ORDERS)+1:03d}",
         "customer_id": customer_id,
         "order_type": payload.get("order_type", "sale"),
         "status": "pending",

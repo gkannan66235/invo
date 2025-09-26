@@ -12,18 +12,21 @@ import logging
 LOGGER = logging.getLogger("pdf_service")
 
 # Minimal single-page PDF template with dynamic fields.
-_PDF_TEMPLATE = ("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
-                 "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-                 "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n"
-                 "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n"
-                 "4 0 obj<</Length {length}>>stream\n{stream}\nendstream endobj\n"
-                 "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
-                 "xref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000055 00000 n \n0000000108 00000 n \n0000000279 00000 n \n0000000400 00000 n \n"
-                 "trailer<</Size 6/Root 1 0 R>>\nstartxref\n{start}\n%%EOF")
+_PDF_TEMPLATE = (
+    "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
+    "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n"
+    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n"
+    "4 0 obj<</Length {length}>>stream\n{stream}\nendstream endobj\n"
+    "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+    "xref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000055 00000 n \n"
+    "0000000108 00000 n \n0000000279 00000 n \n0000000400 00000 n \n"
+    "trailer<</Size 6/Root 1 0 R>>\nstartxref\n{start}\n%%EOF"
+)
 
 
 # type: ignore[no-untyped-def]
-def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:
+def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:  # noqa: ARG001
     """Return placeholder PDF bytes for an invoice.
 
     Args:
@@ -49,8 +52,11 @@ def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:
             parts.append("T*")  # move to next line (simplistic)
         parts.append("ET")
         stream_content = " ".join(parts).encode("latin-1", "ignore")
-        body = _PDF_TEMPLATE.format(length=len(stream_content), stream=stream_content.decode(
-            "latin-1"), start=500+len(stream_content))
+        body = _PDF_TEMPLATE.format(
+            length=len(stream_content),
+            stream=stream_content.decode("latin-1"),
+            start=500 + len(stream_content),
+        )
         return body.encode("latin-1")
     except Exception as exc:  # pragma: no cover
         LOGGER.error("Failed to generate stub PDF: %s", exc)

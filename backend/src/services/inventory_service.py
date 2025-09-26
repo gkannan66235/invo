@@ -5,7 +5,8 @@ Provides CRUD operations and domain validation for InventoryItem.
 Responsibilities:
 - Create inventory item with uniqueness enforcement on product_code.
 - List with filters (category, search, low_stock) + pagination stub.
-- Update allowed fields (description, gst_rate, current_stock, minimum_stock_level, purchase_price, selling_price, category, is_active).
+- Update allowed fields (description, gst_rate, current_stock, minimum_stock_level,
+  purchase_price, selling_price, category, is_active).
 - (Future) Deactivate / soft delete semantics.
 
 Assumptions:
@@ -68,10 +69,18 @@ def _serialize(item: InventoryItem) -> Dict[str, Any]:
 
 
 async def create_inventory_item(db: AsyncSession, payload: Dict[str, Any]) -> Dict[str, Any]:
-    required = ["product_code", "description", "hsn_code",
-                "gst_rate", "selling_price", "category"]
-    missing = [f for f in required if not payload.get(
-        f) and payload.get(f) != 0]
+    required = [
+        "product_code",
+        "description",
+        "hsn_code",
+        "gst_rate",
+        "selling_price",
+        "category",
+    ]
+    missing = [
+        f for f in required
+        if not payload.get(f) and payload.get(f) != 0
+    ]
     if missing:
         raise InventoryValidationError(
             f"Missing required fields: {', '.join(missing)}")

@@ -114,12 +114,14 @@ class TestOrderCreate:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
         # Verify error response
-        response_data = response.json()
-        assert response_data["status"] == "error"
-        assert response_data["error"]["code"] == "INSUFFICIENT_INVENTORY"
+        body = response.json()
+        assert body["status"] == "error"
+        assert body["error"]["code"] == "INSUFFICIENT_INVENTORY"
 
     @pytest.mark.asyncio
-    async def test_create_order_response_time_constitutional_requirement(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_create_order_response_time_constitutional_requirement(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         """Test that order creation response time meets constitutional requirement (<200ms)."""
         import time
 
@@ -136,14 +138,20 @@ class TestOrderCreate:
         }
 
         start_time = time.time()
-        response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
+        resp_time_call = await async_client.post(
+            "/api/v1/orders", json=order_data, headers=auth_headers
+        )
         end_time = time.time()
 
         # Calculate response time in milliseconds
         response_time_ms = (end_time - start_time) * 1000
 
         # Verify constitutional requirement: API responses <200ms
-        assert response_time_ms < 200, f"Order creation response time {response_time_ms:.1f}ms exceeds constitutional requirement of 200ms"
+        assert response_time_ms < 200, (
+            f"Order creation response time {response_time_ms:.1f}ms exceeds "
+            "constitutional requirement of 200ms"
+        )
+        assert resp_time_call.status_code == status.HTTP_201_CREATED
 
 
 class TestOrderList:

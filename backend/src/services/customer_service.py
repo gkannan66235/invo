@@ -46,7 +46,12 @@ async def create_customer(db: AsyncSession, payload: Dict[str, Any]) -> Dict[str
     return _serialize_customer(customer, duplicate_warning=duplicate_warning)
 
 
-async def list_customers(db: AsyncSession, *, search: Optional[str] = None, customer_type: Optional[str] = None) -> list[Dict[str, Any]]:
+async def list_customers(
+    db: AsyncSession,
+    *,
+    search: Optional[str] = None,
+    customer_type: Optional[str] = None,
+) -> list[Dict[str, Any]]:
     """List customers with optional search and type filter.
 
     search: substring match on name or phone (simple ILIKE/LIKE fallback for SQLite)

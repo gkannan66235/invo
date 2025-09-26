@@ -109,7 +109,9 @@ class TestCustomerList:
         assert response_data["error"]["code"] == "UNAUTHORIZED"
 
     @pytest.mark.asyncio
-    async def test_list_customers_response_time_constitutional_requirement(self, async_client: AsyncClient, auth_headers: dict):
+    async def test_list_customers_response_time_constitutional_requirement(
+        self, async_client: AsyncClient, auth_headers: dict
+    ):
         """Test that customers list response time meets constitutional requirement (<200ms)."""
         import time
 
@@ -121,7 +123,10 @@ class TestCustomerList:
         response_time_ms = (end_time - start_time) * 1000
 
         # Verify constitutional requirement: API responses <200ms
-        assert response_time_ms < 200, f"Customers list response time {response_time_ms:.1f}ms exceeds constitutional requirement of 200ms"
+        assert response_time_ms < 200, (
+            f"Customers list response time {response_time_ms:.1f}ms exceeds "
+            "constitutional requirement of 200ms"
+        )
 
         # Also verify successful response
         assert response.status_code == status.HTTP_200_OK

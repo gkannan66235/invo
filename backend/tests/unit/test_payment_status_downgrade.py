@@ -7,13 +7,13 @@ pytestmark = [pytest.mark.unit]
 
 @pytest.mark.asyncio
 async def test_payment_status_downgrade_after_amount_edit(auth_client: AsyncClient):
-    """T049: Editing amount/gst_rate after full payment should downgrade payment status appropriately.
+    """T049: Payment status downgrade logic.
 
     Flow:
-      1. Create invoice amount 100, gst_rate 10 (total 110) -> status pending.
-      2. Pay full (paid_amount == total_amount) -> status paid.
-      3. Increase amount (e.g. amount 120) causing new total > paid_amount; expect downgrade to partial.
-      4. Reduce amount drastically (e.g. amount 50, gst_rate 0) below paid_amount scenario – service logic caps paid? Current implementation keeps paid_amount numeric; we then patch paid_amount down to 0 to ensure pending recalculation works.
+      1. Create invoice 100 @ gst 10 (total 110) -> pending.
+      2. Pay full (paid_amount == total_amount) -> paid.
+      3. Increase amount to 120 -> expect partial (paid < new total).
+      4. Reduce amount to 50 & gst_rate 0, then patch paid_amount to 0 -> expect pending.
     """
     # 1. Create
     create_resp = await auth_client.post(
@@ -48,7 +48,9 @@ async def test_payment_status_downgrade_after_amount_edit(auth_client: AsyncClie
     assert float(inc_env["amount"]) == 120.0
     # After recompute, payment_status should be partial (since paid_amount stayed at old total but < new total)
     assert inc_env["payment_status"].lower() in (
-        "partial", "paid"), inc_env["payment_status"]
+        "partial",
+        "paid",
+    ), inc_env["payment_status"]
     # If still 'paid' due to equalization rounding, force a gst_rate change to ensure downgrade path
     if inc_env["payment_status"].lower() == "paid":
         force = await auth_client.patch(
@@ -65,7 +67,8 @@ async def test_payment_status_downgrade_after_amount_edit(auth_client: AsyncClie
     )
     assert reduce.status_code == 200, reduce.text
     # We don't need to inspect the reduced env beyond ensuring subsequent downgrade works.
-    # If previous paid_amount now exceeds total, the service currently doesn't auto-clamp status; perform an explicit downgrade
+    # If previous paid_amount now exceeds total, service doesn't auto-clamp.
+    # Perform explicit downgrade via paid_amount patch.
     downgrade = await auth_client.patch(
         f"/api/v1/invoices/{invoice_id}", json={"paid_amount": 0}
     )

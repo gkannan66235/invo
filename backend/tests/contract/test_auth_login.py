@@ -141,7 +141,10 @@ class TestAuthLogin:
         response_time_ms = (end_time - start_time) * 1000
 
         # Verify constitutional requirement: API responses <200ms
-        assert response_time_ms < 200, f"Login response time {response_time_ms:.1f}ms exceeds constitutional requirement of 200ms"
+        assert response_time_ms < 200, (
+            f"Login response time {response_time_ms:.1f}ms exceeds "
+            "constitutional requirement of 200ms"
+        )
 
         # Also verify successful response
         assert response.status_code == status.HTTP_200_OK

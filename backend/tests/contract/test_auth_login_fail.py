@@ -9,12 +9,17 @@ pytestmark = [pytest.mark.contract]
 async def test_login_wrong_password(async_client: AsyncClient):
     """T008: Wrong password returns standardized 401 error schema (FR-001, FR-024)."""
     response = await async_client.post(
-        "/api/v1/auth/login", json={"username": "test_admin", "password": "wrong_password"}
+        "/api/v1/auth/login",
+        json={
+            "username": "test_admin",
+            "password": "wrong_password",
+        },
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     body = response.json()
     assert body.get("status") == "error"
     error = body.get("error") or {}
-    # After T020 standardization prefer AUTH_INVALID_CREDENTIALS; keep legacy UNAUTHORIZED for backward compatibility until invoices router adoption (T021)
+    # After T020: prefer AUTH_INVALID_CREDENTIALS; keep legacy UNAUTHORIZED for
+    # backward compatibility until invoices router adoption (T021)
     assert error.get("code") in {"UNAUTHORIZED", "AUTH_INVALID_CREDENTIALS"}
     assert "message" in error

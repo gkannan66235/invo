@@ -73,9 +73,13 @@ async def test_list_invoices_p95_under_200ms(auth_client: AsyncClient):  # T018
 
     threshold_ms = 200.0
     assert p95 < threshold_ms, (
-        "List invoices p95 latency {:.2f}ms (mean {:.2f}ms, max {:.2f}ms) exceeded <{:.0f}ms threshold. Samples: {}".format(
-            p95, mean, max_latency, threshold_ms, [
-                f"{t:.1f}" for t in timings_sorted]
+        "List invoices p95 latency {:.2f}ms (mean {:.2f}ms, max {:.2f}ms) exceeded <{:.0f}ms threshold. "
+        "Samples: {}".format(
+            p95,
+            mean,
+            max_latency,
+            threshold_ms,
+            [f"{t:.1f}" for t in timings_sorted],
         )
     )
 

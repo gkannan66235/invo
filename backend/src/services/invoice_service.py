@@ -85,11 +85,14 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
     # Strategy: attempt a lightweight SELECT first. If absent -> insert 1.
     # If present -> increment and return.
     select_stmt = text(
-        "SELECT last_seq FROM day_invoice_sequences WHERE date_key=:date_key")
+        "SELECT last_seq FROM day_invoice_sequences WHERE date_key=:date_key"
+    )
     insert_stmt = text(
-        "INSERT INTO day_invoice_sequences (date_key, last_seq) VALUES (:date_key, 1) RETURNING last_seq")
+        "INSERT INTO day_invoice_sequences (date_key, last_seq) VALUES (:date_key, 1) RETURNING last_seq"
+    )
     update_stmt = text(
-        "UPDATE day_invoice_sequences SET last_seq = last_seq + 1 WHERE date_key=:date_key RETURNING last_seq")
+        "UPDATE day_invoice_sequences SET last_seq = last_seq + 1 WHERE date_key=:date_key RETURNING last_seq"
+    )
 
     # Bounded retries for transient DB errors (e.g. SQLITE_BUSY under heavy contention)
     import asyncio
@@ -105,19 +108,27 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
                 # Repair: if existing_val >0 but zero invoices for this date, reset
                 check_invoices = await db.execute(
                     text(
-                        "SELECT COUNT(1) FROM invoices WHERE invoice_number LIKE :prefix"),
+                        "SELECT COUNT(1) FROM invoices WHERE invoice_number LIKE :prefix"
+                    ),
                     {"prefix": f"INV-{date_key}-%"},
                 )
                 inv_count = int(check_invoices.scalar_one())
                 if existing_val > 0 and inv_count == 0:
-                    await db.execute(text("UPDATE day_invoice_sequences SET last_seq=0 WHERE date_key=:date_key"), {"date_key": date_key})
+                    await db.execute(
+                        text(
+                            "UPDATE day_invoice_sequences SET last_seq=0 WHERE date_key=:date_key"
+                        ),
+                        {"date_key": date_key},
+                    )
                 upd = await db.execute(update_stmt, {"date_key": date_key})
                 next_seq = int(upd.scalar_one())
             # Do not commit here; caller's transaction boundary handles rollback on failure
             formatted = f"{prefix}{next_seq:04d}"
             if os.getenv("INVOICE_NUM_DEBUG"):
                 logging.getLogger("invoice_number").warning(
-                    "INVOICE_NUM_DEBUG day_seq date_key=%s issued=%s", date_key, formatted
+                    "INVOICE_NUM_DEBUG day_seq date_key=%s issued=%s",
+                    date_key,
+                    formatted,
                 )
             return formatted
         except Exception as exc:  # Handle SQLITE_BUSY/locked transiently

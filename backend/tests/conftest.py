@@ -227,8 +227,8 @@ def _apply_migrations_and_seed():
     sync_url = test_db_url
     # Driver normalization logic:
     # - If asyncpg provided, convert to a sync driver (prefer psycopg; asyncpg not usable sync)
-    # - If psycopg provided, keep it (psycopg v3 supports sync + async). Only swap to pg8000 if installed & desired.
-    # - If plain postgresql:// keep it as-is (SQLAlchemy will pick default psycopg/psycopg2) unless pg8000 explicitly present.
+    # - If psycopg provided, keep it (v3 supports sync + async). Optionally upgrade to pg8000 if installed.
+    # - If plain postgresql:// keep as-is unless pg8000 explicitly present.
     if sync_url.startswith("postgresql+asyncpg://"):
         sync_url = sync_url.replace(
             "postgresql+asyncpg://", "postgresql+psycopg://", 1)
@@ -479,7 +479,11 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: D401, ARG001
         session.exitstatus = 1
         session.config.warn(
             code="INVOICE_COV",
-            message=f"Invoice router coverage {pct:.2f}% below required {threshold:.2f}% (statements={total}, missed={missed})"
+            message=(
+                "Invoice router coverage "
+                f"{pct:.2f}% below required {threshold:.2f}% "
+                f"(statements={total}, missed={missed})"
+            ),
         )
 
 

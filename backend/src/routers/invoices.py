@@ -306,7 +306,11 @@ def _to_frontend_invoice(invoice: Invoice, customer: Optional[Customer] = None) 
         "is_deleted": bool(getattr(invoice, 'is_deleted', False)),
         # Snapshot fields (new feature) - exposed for audit / display; may be None for legacy records
         "branding_snapshot": invoice.branding_snapshot,
-        "gst_rate_snapshot": float(invoice.gst_rate_snapshot) if getattr(invoice, 'gst_rate_snapshot', None) is not None else None,
+        "gst_rate_snapshot": (
+            float(invoice.gst_rate_snapshot)
+            if getattr(invoice, 'gst_rate_snapshot', None) is not None
+            else None
+        ),
         "settings_snapshot": invoice.settings_snapshot,
         # Add placeholder lines array for contract tests (will populate when line items implemented)
         "lines": [],
@@ -331,7 +335,9 @@ async def list_invoices(
     if customer_id:
         invoices = [inv for inv in invoices if str(
             inv.customer_id) == customer_id]
-    customer_ids = {inv.customer_id for inv in invoices if inv.customer_id}
+    customer_ids = {
+        inv.customer_id for inv in invoices if inv.customer_id
+    }
     customers_map = {}
     if customer_ids:
         cust_result = await db.execute(select(Customer).where(Customer.id.in_(customer_ids)))
@@ -374,7 +380,15 @@ async def create_invoice(
     if is_raw_mode(request):
         # Raw mode: convert numeric monetary fields to 2-decimal strings for new_feature tests
         raw_copy = dict(inv_dict)
-        for k in ["amount", "gst_rate", "gst_amount", "total_amount", "paid_amount", "outstanding_amount", "gst_rate_snapshot"]:
+        for k in [
+            "amount",
+            "gst_rate",
+            "gst_amount",
+            "total_amount",
+            "paid_amount",
+            "outstanding_amount",
+            "gst_rate_snapshot",
+        ]:
             if raw_copy.get(k) is not None and isinstance(raw_copy[k], (int, float)):
                 raw_copy[k] = f"{float(raw_copy[k]):.2f}"
         return raw_copy
@@ -396,7 +410,9 @@ async def get_invoice_detail(
     invoice = result.scalar_one_or_none()
     if not invoice:
         # type: ignore[index]
-        code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])  # noqa: E501
+        code = ERROR_CODES.get(
+            "invoice_not_found", ERROR_CODES["not_found"]
+        )
         raise HTTPException(status_code=404, detail="Invoice not found", headers={
                             "X-Error-Code": code})
 
@@ -404,10 +420,21 @@ async def get_invoice_detail(
     if invoice.customer_id:
         cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
         customer = cust_res.scalar_one_or_none()
-    inv_dict = _to_frontend_invoice(invoice, customer)
+    inv_dict = _to_frontend_invoice(
+        invoice,
+        customer,
+    )
     if is_raw_mode(request):
         raw_copy = dict(inv_dict)
-        for k in ["amount", "gst_rate", "gst_amount", "total_amount", "paid_amount", "outstanding_amount", "gst_rate_snapshot"]:
+        for k in [
+            "amount",
+            "gst_rate",
+            "gst_amount",
+            "total_amount",
+            "paid_amount",
+            "outstanding_amount",
+            "gst_rate_snapshot",
+        ]:
             if raw_copy.get(k) is not None and isinstance(raw_copy[k], (int, float)):
                 raw_copy[k] = f"{float(raw_copy[k]):.2f}"
         return raw_copy
