@@ -1,6 +1,6 @@
 """Add day_invoice_sequences table for deterministic daily invoice numbering
 
-Revision ID: 20250926_0006_day_invoice_sequence_table
+Revision ID: 20250926_0006_day_seq_table
 Revises: 20250925_0005
 Create Date: 2025-09-26
 """
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '20250926_0006_day_invoice_sequence_table'
+revision = '20250926_0006_day_seq_table'
 down_revision = '20250925_0005'
 branch_labels = None
 depends_on = None

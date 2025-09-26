@@ -13,7 +13,8 @@ DUPLICATE_LOOKUP_P95_THRESHOLD_MS = 50.0  # Requirement (<50ms)
 
 @pytest.mark.asyncio
 @pytest.mark.performance
-async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):  # T030
+# T030
+async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):
     """Performance test: PDF generation latency p95 < 2000ms.
 
     Methodology:
@@ -37,14 +38,16 @@ async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):  #
     }
     r = await auth_client.post("/api/v1/invoices/", json=create_payload)
     assert r.status_code == 201, r.text
-    invoice_id = r.json()["data"]["invoice"]["id"] if "data" in r.json() else r.json()["id"]
+    invoice_id = r.json()[
+        "data"]["invoice"]["id"] if "data" in r.json() else r.json()["id"]
 
     # Warmups
     WARMUPS = 3
     for _ in range(WARMUPS):
         pdf_resp_w = await auth_client.get(f"/api/v1/invoices/{invoice_id}/pdf")
         assert pdf_resp_w.status_code == 200
-        assert pdf_resp_w.headers.get("content-type", "").startswith("application/pdf")
+        assert pdf_resp_w.headers.get(
+            "content-type", "").startswith("application/pdf")
 
     # 2. Measured requests
     SAMPLES = 15
@@ -75,7 +78,8 @@ async def test_invoice_pdf_generation_p95_under_2s(auth_client: AsyncClient):  #
 
 @pytest.mark.asyncio
 @pytest.mark.performance
-async def test_customer_duplicate_lookup_p95_under_50ms(auth_client: AsyncClient):  # T030
+# T030
+async def test_customer_duplicate_lookup_p95_under_50ms(auth_client: AsyncClient):
     """Performance test: duplicate customer mobile lookup p95 < 50ms.
 
     Methodology:
@@ -99,7 +103,8 @@ async def test_customer_duplicate_lookup_p95_under_50ms(auth_client: AsyncClient
         "email": "dupbase@example.com",
     }
     base_resp = await auth_client.post("/api/v1/customers", json=base_payload)
-    assert base_resp.status_code in (201, 200, 409, 422) or base_resp.status_code < 500
+    assert base_resp.status_code in (
+        201, 200, 409, 422) or base_resp.status_code < 500
     # Even if already seeded, proceed (idempotent-ish for perf scope)
 
     # Warmups
