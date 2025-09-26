@@ -189,7 +189,7 @@ async def seeded_invoice_id(db_session, seeded_customer_id: str) -> AsyncGenerat
     await db_session.refresh(inv)
     yield str(inv.id)
 
- # (Removed legacy auth_headers fixture; use auth_client fixture instead)
+# (Removed legacy auth_headers fixture; use auth_client fixture instead)
 
 
 # NOTE: Earlier db_session fixture removed in favor of single unified implementation below to
@@ -521,7 +521,7 @@ async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
         - Transaction + SAVEPOINT for isolation, rollback on teardown
     """
     test_db_url = os.getenv("TEST_DB_URL")
-    fast_mode = os.getenv("FAST_TESTS") == "1"
+    fast_mode = os.getenv("FAST_TESTS") == "1"  # noqa: F841
     if not test_db_url:  # SQLite / fast path
         # local import to avoid circulars
         from src.config.database import AsyncSessionLocal

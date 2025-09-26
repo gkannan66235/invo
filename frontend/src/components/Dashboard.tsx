@@ -13,14 +13,17 @@ import {
   Plus,
   Search,
   Filter,
-  Eye,
   Edit,
   Trash2,
-  Download
+  Printer,
+  Download,
+  Package,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import InvoiceForm from './InvoiceForm';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -111,13 +114,28 @@ export default function Dashboard() {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Building2 className="h-8 w-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">
-                GST Service Center
-              </h1>
+            <div className="flex items-center space-x-8">
+              <div className="flex items-center">
+                <Building2 className="h-8 w-8 text-blue-600 mr-3" />
+                <h1 className="text-xl font-semibold text-gray-900">
+                  GST Service Center
+                </h1>
+              </div>
+              <nav className="hidden md:flex items-center space-x-6 text-sm">
+                <Link href="/" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
+                  <FileText className="h-4 w-4" /><span>Invoices</span>
+                </Link>
+                <Link href="/customers" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
+                  <Users className="h-4 w-4" /><span>Customers</span>
+                </Link>
+                <Link href="/inventory" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
+                  <Package className="h-4 w-4" /><span>Inventory</span>
+                </Link>
+                <Link href="/settings" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
+                  <SettingsIcon className="h-4 w-4" /><span>Settings</span>
+                </Link>
+              </nav>
             </div>
-            
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-600">
                 Welcome, <span className="font-medium">{user?.full_name || user?.username}</span>
@@ -310,6 +328,13 @@ export default function Dashboard() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
+                        <Link
+                          href={`/invoices/${invoice.id}/print`}
+                          className="text-gray-600 hover:text-gray-900"
+                          title="Print / PDF"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Link>
                       </div>
                     </td>
                   </tr>

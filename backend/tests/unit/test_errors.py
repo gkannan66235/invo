@@ -1,4 +1,4 @@
-import pytest
+import pytest  # noqa: F401
 from src.utils.errors import error_payload, ERROR_CODES, OverpayNotAllowed
 
 

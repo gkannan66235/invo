@@ -104,14 +104,12 @@ def configure_structured_logging(service_name: str, environment: str) -> None:
         processors = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True)
         ]
-        formatter = None
     else:
         # JSON output for production
         processors = shared_processors + [
             structlog.processors.add_log_level,
             structlog.processors.JSONRenderer()
         ]
-        formatter = logging.Formatter('%(message)s')
 
     # Configure structlog
     structlog.configure(
@@ -123,10 +121,10 @@ def configure_structured_logging(service_name: str, environment: str) -> None:
     )
 
     # Configure standard logging
-    logging.basicConfig(
+    logging.basicConfig(  # type: ignore[attr-defined]
         format="%(message)s" if environment != "development" else None,
         level=getattr(logging, log_level),
-        handlers=[logging.StreamHandler()]
+        handlers=[logging.StreamHandler()]  # type: ignore[attr-defined]
     )
 
     # Add service context to all logs
@@ -380,7 +378,7 @@ try:  # Guard in case metrics backend not fully configured
         name="customer_duplicate_warning_total",
         description="Total number of customer create attempts triggering duplicate warning"
     )
-except Exception as instrumentation_error:  # noqa: BLE001
+except Exception as instrumentation_error:  # noqa: BLE001 F841
     # Intentional broad catch: metrics subsystem is optional; proceed without counters
     invoice_create_counter = None  # type: ignore
     invoice_update_counter = None  # type: ignore
@@ -428,5 +426,5 @@ def record_invoice_operation(operation: str) -> None:
     try:  # pragma: no cover - defensive
         if _native_invoice_operation_counter is not None:
             _native_invoice_operation_counter.labels(operation=operation).inc()
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass

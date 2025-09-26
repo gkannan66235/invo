@@ -1,0 +1,9 @@
+[flake8]
+# Allow longer lines for readability & Black harmony
+max-line-length = 120
+# Black compatibility rules
+extend-ignore = E203,W503
+# Relax docstring requirements in tests
+per-file-ignores = tests/*:D100,D101,D102,D103,D104
+# Exclusions
+exclude = .git,__pycache__,.venv,build,dist,alembic/versions

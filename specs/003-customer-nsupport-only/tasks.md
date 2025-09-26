@@ -186,30 +186,35 @@ T030. Add performance test for PDF generation p95 (<2s) & duplicate lookup (<50m
 
 ### Phase H: Frontend Integration
 
-T031. Frontend API layer additions: customers, inventory, settings, invoice PDF fetch
+T031. Frontend API layer additions: customers, inventory, settings, invoice PDF fetch [X]
 
 - File(s): `frontend/src/lib/api.ts`, new util modules
 - Dependencies: T024 T025 T027 T028
+- Notes: Added customersApi, inventoryApi, settingsApi, invoiceApi.downloadPdf plus supporting types.
 
-T032. UI Components: Customer management screens (list/create/edit), duplicate warning toast
+T032. UI Components: Customer management screens (list/create/edit), duplicate warning toast [X]
 
-- File(s): `frontend/src/app/(customers)/**`
+- File(s): `frontend/src/app/customers/page.tsx`
 - Dependencies: T031
+- Notes: Implemented list + create with duplicate_warning toast indicator.
 
-T033. UI Components: Inventory management screens
+T033. UI Components: Inventory management screens [X]
 
-- File(s): `frontend/src/app/(inventory)/**`
+- File(s): `frontend/src/app/inventory/page.tsx`
 - Dependencies: T031
+- Notes: Basic CRUD subset (create + deactivate + list) aligned with backend endpoints.
 
-T034. UI Components: Settings screen (GST update, branding)
+T034. UI Components: Settings screen (GST update, branding) [X]
 
-- File(s): `frontend/src/app/(settings)/**`
+- File(s): `frontend/src/app/settings/page.tsx`
 - Dependencies: T031
+- Notes: Supports viewing & updating default GST rate; branding placeholder.
 
-T035. Invoice printable view & print button + PDF download integration
+T035. Invoice printable view & print button + PDF download integration [X]
 
-- File(s): `frontend/src/app/(invoices)/[id]/print/page.tsx`
+- File(s): `frontend/src/app/invoices/[id]/print/page.tsx`
 - Dependencies: T027 T031
+- Notes: Printable layout with print + PDF download button; pulls invoice & renders summary.
 
 ### Phase I: Polish & Documentation
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi, User, LoginRequest } from './api';
+import { authApi, User } from './api';
 import Cookies from 'js-cookie';
 
 interface AuthContextType {
@@ -40,11 +40,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     try {
       const response = await authApi.login({ username, password });
-      
-      // Store tokens
+      // Store tokens (refresh token may be optional)
       Cookies.set('access_token', response.access_token, { expires: 7 });
-      Cookies.set('refresh_token', response.refresh_token, { expires: 30 });
-      
+      if (response.refresh_token) {
+        Cookies.set('refresh_token', response.refresh_token, { expires: 30 });
+      }
       setUser(response.user);
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Login failed');

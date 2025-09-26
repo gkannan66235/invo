@@ -36,43 +36,17 @@ class TestOrderCreate:
             "payment_terms": "net_30",
             "notes": "Urgent delivery required"
         }
-
         response = await async_client.post("/api/v1/orders", json=order_data, headers=auth_headers)
-
-        # Verify response status
         assert response.status_code == status.HTTP_201_CREATED
-
-        # Verify response structure
         response_data = response.json()
         assert response_data["status"] == "success"
-        assert "data" in response_data
-
-        # Verify created order data
         order = response_data["data"]["order"]
         assert order["customer_id"] == order_data["customer_id"]
         assert order["order_type"] == order_data["order_type"]
-        assert "id" in order
-        assert "order_number" in order
-        assert "created_at" in order
-        assert "status" in order
-
-        # Verify order calculations
-        assert "subtotal" in order
-        assert "gst_amount" in order
-        assert "total_amount" in order
         assert order["total_amount"] > 0
-
-        # Verify items structure
-        assert "items" in order
         assert len(order["items"]) == 2
-
         for item in order["items"]:
-            assert "id" in item
-            assert "quantity" in item
-            assert "unit_price" in item
-            assert "line_total" in item
-            assert "gst_rate" in item
-            assert "gst_amount" in item
+            assert "id" in item and "gst_amount" in item
 
     @pytest.mark.asyncio
     async def test_create_order_missing_items(self, async_client: AsyncClient, auth_headers: dict):

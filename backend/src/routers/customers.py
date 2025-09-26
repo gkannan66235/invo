@@ -6,14 +6,14 @@ from typing import Any, Dict, List
 from ..config.database import get_async_db_dependency
 from ..services import customer_service
 from .auth import get_current_user, User
-from src.utils.api_shapes import success as _success, error_envelope, is_raw_mode
+from src.utils.api_shapes import success as _success, is_raw_mode  # noqa: F401
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 _optional_bearer = HTTPBearer(auto_error=False)
 
 
 async def get_current_user_optional(
-    request: Request,
+    _request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(
         _optional_bearer),
     db: AsyncSession = Depends(get_async_db_dependency),
@@ -48,7 +48,11 @@ async def list_customers(
             "status": "error",
             "error": {"code": "UNAUTHORIZED", "message": "Authentication required"}
         })
-    customers: List[Dict[str, Any]] = await customer_service.list_customers(db, search=search, customer_type=customer_type)
+    customers: List[Dict[str, Any]] = await customer_service.list_customers(
+        db,
+        search=search,
+        customer_type=customer_type,
+    )
     pagination = {
         "page": 1,
         "page_size": len(customers),
@@ -65,12 +69,11 @@ async def list_customers(
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_customer(
-    request: Request,
+    request: Request,  # noqa: ARG001 - part of uniform handler signature (raw mode check)
     payload: Dict[str, Any],
     db: AsyncSession = Depends(get_async_db_dependency),
     _current_user: User = Depends(get_current_user),
 ):
-    from fastapi.responses import JSONResponse
     if not payload.get("name"):
         err = {"status": "error", "error": {
             "code": "VALIDATION_ERROR", "message": "'name' required"}}
@@ -97,7 +100,7 @@ async def create_customer(
 
 @router.get("/{customer_id}")
 async def get_customer(
-    request: Request,
+    request: Request,  # noqa: ARG001 - kept for possible raw mode / future auditing
     customer_id: str,
     db: AsyncSession = Depends(get_async_db_dependency),
     _current_user: User = Depends(get_current_user),
@@ -113,13 +116,12 @@ async def get_customer(
 
 @router.patch("/{customer_id}")
 async def update_customer(
-    request: Request,
+    request: Request,  # noqa: ARG001 - consistent signature
     customer_id: str,
     payload: Dict[str, Any],
     db: AsyncSession = Depends(get_async_db_dependency),
     _current_user: User = Depends(get_current_user),
 ):
-    from fastapi.responses import JSONResponse
     try:
         c = await customer_service.update_customer(db, customer_id, payload)
     except ValueError as ve:

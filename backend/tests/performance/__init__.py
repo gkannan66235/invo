@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from contextlib import asynccontextmanager
 
 import httpx
-import pytest
+# pytest imported in individual test modules; suppress unused in this helper
+import pytest  # noqa: F401
 from locust import HttpUser, task, between
 
 
@@ -267,14 +268,14 @@ def generate_performance_report(results: Dict[str, PerformanceMetrics]) -> str:
     """Generate a formatted performance test report."""
     report = []
     report.append("# GST Service Center Performance Test Report")
-    report.append(f"Constitutional Requirement: API responses <200ms p95")
+    report.append("Constitutional Requirement: API responses <200ms p95")
     report.append("")
 
     compliant_count = sum(1 for metrics in results.values()
                           if metrics.constitutional_compliance)
     total_count = len(results)
 
-    report.append(f"## Summary")
+    report.append("## Summary")
     report.append(f"- Endpoints tested: {total_count}")
     report.append(
         f"- Constitutional compliance: {compliant_count}/{total_count}")

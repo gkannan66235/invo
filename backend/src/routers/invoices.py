@@ -6,8 +6,7 @@ Phase 3 Adjustments (Tasks T019, T021, T028):
  - Metrics emission (create/update/delete counters) per observability plan (Section 9) & T028
 """
 from datetime import datetime
-from uuid import uuid4
-from typing import Optional, Dict, Any
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -19,7 +18,6 @@ try:  # Prefer src.* imports; fallback adds backend dir to path
     from src.config.database import get_async_db_dependency  # type: ignore
     from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment  # type: ignore
     from src.utils.errors import ERROR_CODES, OverpayNotAllowed  # type: ignore
-    from src.config.settings import get_default_gst_rate  # type: ignore
     from src.config.observability import (  # type: ignore
         invoice_create_counter,
         invoice_update_counter,
@@ -46,7 +44,6 @@ except ImportError:
     from src.config.database import get_async_db_dependency  # type: ignore
     from src.models.database import Invoice, Customer, PaymentStatus, GSTTreatment  # type: ignore
     from src.utils.errors import ERROR_CODES, OverpayNotAllowed  # type: ignore
-    from src.config.settings import get_default_gst_rate  # type: ignore
     from src.config.observability import (  # type: ignore
         invoice_create_counter,
         invoice_update_counter,
@@ -398,9 +395,8 @@ async def get_invoice_detail(
     result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalar_one_or_none()
     if not invoice:
-        from src.utils.errors import ERROR_CODES  # local import
         # type: ignore[index]
-        code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])
+        code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])  # noqa: E501
         raise HTTPException(status_code=404, detail="Invoice not found", headers={
                             "X-Error-Code": code})
 
@@ -606,13 +602,14 @@ async def get_invoice_pdf(invoice_id: UUID,
     Contract test expects a 200 with application/pdf; we emit a tiny valid PDF header.
     """
     from fastapi.responses import Response
-    try:
-        invoice, customer = await get_invoice_service(db, invoice_id)  # noqa: F841
+    try:  # Ensure invoice exists; ignore customer value
+        invoice, _customer = await get_invoice_service(db, invoice_id)  # noqa: F841
     except InvoiceNotFound as exc:  # pragma: no cover
         raise HTTPException(status_code=404, detail=str(exc))
     pdf_bytes = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
     try:
-        await record_invoice_download(db, invoice_id, 'pdf')
+        # Record download with required action & placeholder user_id=None
+        await record_invoice_download(db=db, invoice_id=invoice_id, user_id=None, action='pdf')
     except Exception:  # pragma: no cover - best effort
         pass
     return Response(content=pdf_bytes, media_type='application/pdf')

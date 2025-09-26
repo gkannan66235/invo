@@ -69,6 +69,39 @@ export interface LoginResponse {
   user: User;
 }
 
+// Customers
+export interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  gst_number?: string;
+  customer_type?: string;
+  duplicate_warning?: boolean; // present on create when duplicate detected
+  created_at?: string;
+}
+
+export interface CreateCustomerRequest {
+  name: string;
+  email?: string;
+  phone?: string;
+  gst_number?: string;
+  customer_type?: string;
+  address?: Record<string, any>;
+}
+
+// Settings
+export interface SettingsResponse {
+  gst_default_rate: number;
+  branding?: Record<string, any> | null;
+  updated_at?: string;
+}
+
+export interface UpdateSettingsRequest {
+  gst_default_rate?: number;
+  branding?: Record<string, any> | null;
+}
+
 export interface Invoice {
   id: number;
   invoice_number: string;
@@ -146,6 +179,73 @@ export const invoiceApi = {
     const response = await api.patch(`/api/v1/invoices/${id}/status`, { status });
     return response.data;
   },
+
+  downloadPdf: async (id: string | number): Promise<Blob> => {
+    const response = await api.get(`/api/v1/invoices/${id}/pdf`, { responseType: 'blob' });
+    return response.data;
+  },
+};
+
+// Customers API
+export const customersApi = {
+  list: async (): Promise<{ customers: Customer[]; pagination: any }> => {
+    const response = await api.get('/api/v1/customers');
+    return response.data;
+  },
+  create: async (data: CreateCustomerRequest): Promise<Customer & { duplicate_warning?: boolean }> => {
+    const response = await api.post('/api/v1/customers', data);
+    return response.data.customer || response.data; // raw mode support
+  },
+  get: async (id: string): Promise<Customer> => {
+    const response = await api.get(`/api/v1/customers/${id}`);
+    return response.data.customer || response.data;
+  },
+  update: async (id: string, data: Partial<CreateCustomerRequest>): Promise<Customer> => {
+    const response = await api.patch(`/api/v1/customers/${id}`, data);
+    return response.data.customer || response.data;
+  },
+};
+
+// Inventory API (basic subset; backend may return additional fields)
+export interface InventoryItem {
+  id: string;
+  product_code: string;
+  description: string;
+  gst_rate?: number;
+  selling_price?: number;
+  current_stock?: number;
+  is_active?: boolean;
+  created_at?: string;
+}
+
+export const inventoryApi = {
+  list: async (): Promise<{ items: InventoryItem[] }> => {
+    const response = await api.get('/api/v1/inventory');
+    return response.data;
+  },
+  create: async (data: Partial<InventoryItem>): Promise<InventoryItem> => {
+    const response = await api.post('/api/v1/inventory', data);
+    return response.data.item || response.data;
+  },
+  update: async (id: string, data: Partial<InventoryItem>): Promise<InventoryItem> => {
+    const response = await api.patch(`/api/v1/inventory/${id}`, data);
+    return response.data.item || response.data;
+  },
+  deactivate: async (id: string): Promise<void> => {
+    await api.post(`/api/v1/inventory/${id}/deactivate`, {});
+  }
+};
+
+// Settings API
+export const settingsApi = {
+  get: async (): Promise<SettingsResponse> => {
+    const response = await api.get('/api/v1/settings');
+    return response.data.settings || response.data;
+  },
+  update: async (data: UpdateSettingsRequest): Promise<SettingsResponse> => {
+    const response = await api.patch('/api/v1/settings', data);
+    return response.data.settings || response.data;
+  }
 };
 
 // Health check
