@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from ..config.database import get_async_db_dependency
 from ..services import customer_service
 from .auth import get_current_user, User
+from src.utils.api_shapes import success as _success, error_envelope, is_raw_mode
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 _optional_bearer = HTTPBearer(auto_error=False)
@@ -32,29 +33,6 @@ async def get_current_user_optional(
 router = APIRouter(prefix="/api/v1/customers", tags=["customers"])
 
 
-def _success(data, **meta):  # consistent envelope with invoices
-    import time as _time
-    return {"status": "success", "data": data, "meta": meta or None, "timestamp": _time.time()}
-
-
-def _error(code: str, message: str, http_status: int):
-    raise HTTPException(status_code=http_status, detail={
-                        "code": code, "message": message})
-
-
-def _is_raw_legacy_mode(request: Request) -> bool:
-    """Detect legacy/raw mode (new_feature skeleton tests) using FAST_TESTS token shortcut.
-
-    Heuristic: Authorization header with value 'Bearer test.fast.token' (added by app_client fixture)
-    indicates we still want *raw* mode for early contract skeleton tests that predated envelopes.
-    For richer contract tests passing auth_headers (real JWT), we keep envelope mode.
-    """
-    if request.headers.get("X-Raw-Mode") in {"1", "true", "raw"}:
-        return True
-    auth = request.headers.get("Authorization", "")
-    return auth.endswith("test.fast.token") and request.headers.get("X-Raw-Mode") is not None
-
-
 @router.get("")
 async def list_customers(
     request: Request,
@@ -79,7 +57,7 @@ async def list_customers(
         "has_next": False,
         "has_previous": False,
     }
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         # Raw mode returns plain list (original new_feature tests expect a list only)
         return customers
     return _success({"customers": customers, "pagination": pagination})
@@ -111,7 +89,7 @@ async def create_customer(
         err = {"status": "error", "error": {
             "code": "VALIDATION_ERROR", "message": str(ve)}}
         return JSONResponse(status_code=422, content=err)
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         # Raw mode returns flattened customer dict with duplicate_warning at top level
         return cust | {"duplicate_warning": cust.get("duplicate_warning", False)}
     return _success({"customer": cust})
@@ -128,7 +106,7 @@ async def get_customer(
     if not c:
         raise HTTPException(status_code=404, detail={
                             "code": "NOT_FOUND", "message": "Customer not found"})
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         return c
     return _success({"customer": c})
 
@@ -151,6 +129,6 @@ async def update_customer(
     if not c:
         raise HTTPException(status_code=404, detail={
                             "code": "NOT_FOUND", "message": "Customer not found"})
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         return c
     return _success({"customer": c})

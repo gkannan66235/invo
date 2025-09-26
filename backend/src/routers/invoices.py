@@ -65,23 +65,9 @@ except ImportError:
         OverpayNotAllowed as ServiceOverpayNotAllowed,
     )
 from .auth import get_current_user, User
+from src.utils.api_shapes import success as _success, is_raw_mode
 
 router = APIRouter()
-
-
-def _success(data, **meta):  # lightweight envelope helper
-    import time as _time
-    return {"status": "success", "data": data, "meta": meta or None, "timestamp": _time.time()}
-
-
-def _is_raw_legacy_mode(request: Request) -> bool:
-    # Explicit header takes precedence to avoid impacting auth_client (which also uses fast token)
-    if request.headers.get("X-Raw-Mode") in {"1", "true", "raw"}:
-        return True
-    # Backward compatibility: only treat fast token as raw if explicit header not required
-    # (kept for any lingering tests not updated yet)
-    auth = request.headers.get("Authorization", "")
-    return auth.endswith("test.fast.token") and request.headers.get("X-Raw-Mode") is not None
 
 # Pydantic schemas
 
@@ -358,7 +344,7 @@ async def list_invoices(
         _to_frontend_invoice(inv, customers_map.get(inv.customer_id))
         for inv in invoices
     ]
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         # Raw returns list directly
         return data_list
     return _success(data_list, total=len(data_list))
@@ -388,7 +374,7 @@ async def create_invoice(
             1, {"place_of_supply": created.invoice.place_of_supply})
     record_invoice_operation("create")
     inv_dict = _to_frontend_invoice(created.invoice, created.customer)
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         # Raw mode: convert numeric monetary fields to 2-decimal strings for new_feature tests
         raw_copy = dict(inv_dict)
         for k in ["amount", "gst_rate", "gst_amount", "total_amount", "paid_amount", "outstanding_amount", "gst_rate_snapshot"]:
@@ -423,7 +409,7 @@ async def get_invoice_detail(
         cust_res = await db.execute(select(Customer).where(Customer.id == invoice.customer_id))
         customer = cust_res.scalar_one_or_none()
     inv_dict = _to_frontend_invoice(invoice, customer)
-    if _is_raw_legacy_mode(request):
+    if is_raw_mode(request):
         raw_copy = dict(inv_dict)
         for k in ["amount", "gst_rate", "gst_amount", "total_amount", "paid_amount", "outstanding_amount", "gst_rate_snapshot"]:
             if raw_copy.get(k) is not None and isinstance(raw_copy[k], (int, float)):
