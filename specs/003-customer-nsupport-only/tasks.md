@@ -56,27 +56,27 @@ T006. SQLAlchemy models (if not present) for Customer, InventoryItem, InvoiceLin
 
 ### Phase C: Contract Tests (One per contract) – Parallelizable
 
-T007. Contract test: Customers API list/create/get/update (duplicate warning field) [P]
+T007. Contract test: Customers API list/create/get/update (duplicate warning field) [P] [X]
 
 - File(s): `backend/src/tests/contract/test_customers_contract.py`
 - Dependencies: T005
 
-T008. Contract test: Inventory API list/create/update [P]
+T008. Contract test: Inventory API list/create/update [P] [X]
 
 - File(s): `backend/src/tests/contract/test_inventory_contract.py`
 - Dependencies: T005
 
-T009. Contract test: Invoices API create/list/get, ensures INR fields & snapshot placeholders [P]
+T009. Contract test: Invoices API create/list/get, ensures INR fields & snapshot placeholders [P] [X]
 
 - File(s): `backend/src/tests/contract/test_invoices_contract.py`
 - Dependencies: T005
 
-T010. Contract test: Invoice PDF download endpoint (content-type, audit log inserted) [P]
+T010. Contract test: Invoice PDF download endpoint (content-type, audit log inserted) [P] [X]
 
 - File(s): `backend/src/tests/contract/test_invoice_pdf_contract.py`
 - Dependencies: T005
 
-T011. Contract test: Settings API get/patch (GST rate prospective) [P]
+T011. Contract test: Settings API get/patch (GST rate prospective) [P] [X]
 
 - File(s): `backend/src/tests/contract/test_settings_contract.py`
 - Dependencies: T005
@@ -115,66 +115,66 @@ T017. Integration test: Cancelled vs soft-deleted invoice access control [P] [X]
 
 ### Phase E: Service Layer Implementations (Sequential per shared file)
 
-T018. Implement Customer service: create (normalize, duplicate check), update
+T018. Implement Customer service: create (normalize, duplicate check), update [X]
 
 - File(s): `backend/src/services/customer_service.py`
 - Dependencies: T007 T012 T013
 
-T019. Implement Inventory service CRUD (activate/deactivate)
+T019. Implement Inventory service CRUD (activate/deactivate) [X]
 
 - File(s): `backend/src/services/inventory_service.py`
 - Dependencies: T008
 
-T020. Extend Invoice service for snapshot fields & lines, settings snapshot
+T020. Extend Invoice service for snapshot fields & lines, settings snapshot [X]
 
 - File(s): `backend/src/services/invoice_service.py`
 - Dependencies: T009 T014 T016
 
-T021. Implement PDF service (HTML render + Playwright print) & caching hook
+T021. Implement PDF service (HTML render + Playwright print) & caching hook [X]
 
 - File(s): `backend/src/services/pdf_service.py`
 - Dependencies: T010 T015 T018 T020
 
-T022. Implement Settings service (get/update with prospective GST logic)
+T022. Implement Settings service (get/update with prospective GST logic) [X]
 
 - File(s): `backend/src/services/settings_service.py`
 - Dependencies: T011 T016
 
-T023. Implement Audit logging service (async write) for downloads
+T023. Implement Audit logging service (async write) for downloads [X]
 
 - File(s): `backend/src/services/audit_service.py`
 - Dependencies: T010 T015 T021
 
 ### Phase F: Routers / API Endpoints
 
-T024. Add `customers.py` router (list/create/get/update) wiring to service
+T024. Add `customers.py` router (list/create/get/update) wiring to service [X]
 
 - File(s): `backend/src/routers/customers.py`
 - Dependencies: T018
 
-T025. Add `inventory.py` router (list/create/update/deactivate)
+T025. Add `inventory.py` router (list/create/update/deactivate) [X]
 
 - File(s): `backend/src/routers/inventory.py`
 - Dependencies: T019
 
-T026. Extend existing `invoices.py` router: create/list/get use new service logic & add lines snapshot
+T026. Extend existing `invoices.py` router: create/list/get use new service logic & add lines snapshot [X]
 
 - File(s): `backend/src/routers/invoices.py`
 - Dependencies: T020
 
-T027. Add PDF download route `/api/v1/invoices/{id}/pdf` using pdf_service & audit service
+T027. Add PDF download route `/api/v1/invoices/{id}/pdf` using pdf_service & audit service [X]
 
 - File(s): `backend/src/routers/invoices.py`
 - Dependencies: T021 T023
 
-T028. Add `settings.py` router (get/patch) admin-only guard
+T028. Add `settings.py` router (get/patch) admin-only guard [X]
 
 - File(s): `backend/src/routers/settings.py`
 - Dependencies: T022
 
 ### Phase G: Observability & Metrics
 
-T029. Add new metrics instruments (counters/histograms) and integrate into services
+T029. Add new metrics instruments (counters/histograms) and integrate into services [X]
 
 - File(s): `backend/src/config/observability.py`, service files
 - Dependencies: T021 T023
@@ -213,12 +213,12 @@ T035. Invoice printable view & print button + PDF download integration
 
 ### Phase I: Polish & Documentation
 
-T036. Add unit tests for formatting util (Indian digit grouping) [P]
+T036. Add unit tests for formatting util (Indian digit grouping) [P] [X]
 
 - File(s): `backend/src/tests/unit/test_indian_formatting.py`
 - Dependencies: T020
 
-T037. Add unit tests for mobile normalization edge cases [P]
+T037. Add unit tests for mobile normalization edge cases [P] [X]
 
 - File(s): `backend/src/tests/unit/test_mobile_normalization.py`
 - Dependencies: T018

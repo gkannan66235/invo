@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import select
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from ..models.database import Customer
+from src.models.database import Customer  # type: ignore
 
 # Customer service (T018) minimal implementation for initial sprint.
 # Responsibilities:
@@ -28,25 +28,21 @@ async def create_customer(db: AsyncSession, payload: Dict[str, Any]) -> Dict[str
     email = payload.get("email")
 
     customer = Customer(name=name, phone=phone, email=email)
-
-    # Persist first, then compute duplicate flag based on total active count sharing mobile (count>1)
     db.add(customer)
     await db.commit()
     await db.refresh(customer)
-
     duplicate_warning = False
-    mobile_norm = customer.mobile_normalized or _normalize_mobile(phone)
-    if mobile_norm:
-        q = await db.execute(
+    if customer.mobile_normalized:
+        # Fetch up to 2 active customers sharing this mobile (including self)
+        dup_rows = await db.execute(
             select(Customer.id).where(
-                Customer.mobile_normalized == mobile_norm,
+                Customer.mobile_normalized == customer.mobile_normalized,
                 Customer.is_active.is_(True),
-                Customer.id != customer.id  # exclude self
-            ).limit(1)
+            ).limit(2)
         )
-        if q.scalar_one_or_none() is not None:
+        ids = [r for r, in dup_rows.all()]
+        if len(ids) > 1:
             duplicate_warning = True
-
     return _serialize_customer(customer, duplicate_warning=duplicate_warning)
 
 
@@ -59,10 +55,9 @@ async def list_customers(db: AsyncSession, *, search: Optional[str] = None, cust
     stmt = select(Customer).order_by(Customer.created_at.desc()).limit(500)
     if search:
         like = f"%{search.lower()}%"
-        # Using lower() for cross-dialect compatibility
-        from sqlalchemy import or_, func as _f
-        stmt = stmt.where(or_(_f.lower(Customer.name).like(
-            like), _f.lower(Customer.phone).like(like)))
+        from sqlalchemy import or_, func as f2  # localized import for readability
+        stmt = stmt.where(or_(f2.lower(Customer.name).like(
+            like), f2.lower(Customer.phone).like(like)))
     if customer_type:
         stmt = stmt.where(Customer.customer_type == customer_type)
     result = await db.execute(stmt)
@@ -83,21 +78,32 @@ async def list_customers(db: AsyncSession, *, search: Optional[str] = None, cust
 async def get_customer(db: AsyncSession, customer_id: str) -> Optional[Dict[str, Any]]:
     # Ensure we pass a proper UUID object when model column uses as_uuid=True
     try:
-        from uuid import UUID as _UUID
-        cust_uuid = _UUID(customer_id)
-    except Exception:
+        cust_uuid = UUID(customer_id)
+    except ValueError:
         return None
     res = await db.execute(select(Customer).where(Customer.id == cust_uuid))
     obj = res.scalar_one_or_none()
     if not obj:
         return None
-    return _serialize_customer(obj)
+    # Recompute duplicate flag on demand (consistent with list/create semantics)
+    dup_flag = False
+    if obj.mobile_normalized:
+        dup_rows = await db.execute(
+            select(Customer.id).where(
+                Customer.mobile_normalized == obj.mobile_normalized,
+                Customer.is_active.is_(True)
+            ).limit(2)
+        )
+        ids = [r for (r,) in dup_rows.all()]
+        if len(ids) > 1:
+            dup_flag = True
+    return _serialize_customer(obj, duplicate_warning=dup_flag)
 
 
 async def update_customer(db: AsyncSession, customer_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     try:
         customer_uuid = UUID(customer_id)
-    except Exception:
+    except ValueError:
         # Invalid UUID format
         return None
     res = await db.execute(select(Customer).where(Customer.id == customer_uuid))
@@ -113,16 +119,18 @@ async def update_customer(db: AsyncSession, customer_id: str, payload: Dict[str,
     if "phone" in payload:
         _ = customer.phone  # access property for clarity
 
+    # Flush pending changes to ensure normalized mobile reflects update before duplicate check
+    await db.flush()
     duplicate_warning = False
     if customer.mobile_normalized:
-        q = await db.execute(
+        dup_rows = await db.execute(
             select(Customer.id).where(
                 Customer.mobile_normalized == customer.mobile_normalized,
-                Customer.id != customer.id,
                 Customer.is_active.is_(True)
-            ).limit(1)
+            ).limit(2)
         )
-        if q.scalar_one_or_none() is not None:
+        ids = [rid for (rid,) in dup_rows.all()]
+        if len(ids) > 1:
             duplicate_warning = True
 
     await db.commit()

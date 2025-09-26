@@ -38,6 +38,9 @@ backend/src/test.db
 backend/test.sqlite3
 test.db
 backend/test_mig.db
+backend/dev.db
+backend/fasttests.db
+fasttests.db
 *.sqlite3
 *.db-journal
 

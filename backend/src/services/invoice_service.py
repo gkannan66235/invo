@@ -80,40 +80,39 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
     date_key = now_utc.strftime('%Y%m%d')
     prefix = f"INV-{date_key}-"
 
-    stmt = text(
-        """
-        INSERT INTO day_invoice_sequences (date_key, last_seq)
-        VALUES (:date_key, 1)
-        ON CONFLICT(date_key) DO UPDATE SET last_seq = day_invoice_sequences.last_seq + 1
-        RETURNING last_seq
-        """
-    )
+    # We want strict reset semantics across day boundaries even if earlier tests
+    # allocated sequences for a future monkeypatched date and rolled back.
+    # Strategy: attempt a lightweight SELECT first. If absent -> insert 1.
+    # If present -> increment and return.
+    select_stmt = text(
+        "SELECT last_seq FROM day_invoice_sequences WHERE date_key=:date_key")
+    insert_stmt = text(
+        "INSERT INTO day_invoice_sequences (date_key, last_seq) VALUES (:date_key, 1) RETURNING last_seq")
+    update_stmt = text(
+        "UPDATE day_invoice_sequences SET last_seq = last_seq + 1 WHERE date_key=:date_key RETURNING last_seq")
 
     # Bounded retries for transient DB errors (e.g. SQLITE_BUSY under heavy contention)
     import asyncio
     for _ in range(10):
         try:
-            result = await db.execute(stmt, {"date_key": date_key})
-            next_seq = int(result.scalar_one())
-            # Repair scenario: if sequence >1 but no invoices yet for this date (e.g. prior aborted attempts)
-            if next_seq > 1:
-                check = await db.execute(
+            # Try select existing sequence row
+            existing_row = await db.execute(select_stmt, {"date_key": date_key})
+            existing_val = existing_row.scalar_one_or_none()
+            if existing_val is None:
+                ins = await db.execute(insert_stmt, {"date_key": date_key})
+                next_seq = int(ins.scalar_one())
+            else:
+                # Repair: if existing_val >0 but zero invoices for this date, reset
+                check_invoices = await db.execute(
                     text(
                         "SELECT COUNT(1) FROM invoices WHERE invoice_number LIKE :prefix"),
                     {"prefix": f"INV-{date_key}-%"},
                 )
-                inv_count = int(check.scalar_one())
-                if inv_count == 0:
-                    # Reset sequence back to 0 then re-issue 1 atomically
-                    await db.execute(
-                        text(
-                            "UPDATE day_invoice_sequences SET last_seq=0 WHERE date_key=:date_key"),
-                        {"date_key": date_key},
-                    )
-                    await db.commit()
-                    # Re-run insert to obtain 1
-                    result = await db.execute(stmt, {"date_key": date_key})
-                    next_seq = int(result.scalar_one())
+                inv_count = int(check_invoices.scalar_one())
+                if existing_val > 0 and inv_count == 0:
+                    await db.execute(text("UPDATE day_invoice_sequences SET last_seq=0 WHERE date_key=:date_key"), {"date_key": date_key})
+                upd = await db.execute(update_stmt, {"date_key": date_key})
+                next_seq = int(upd.scalar_one())
             # Do not commit here; caller's transaction boundary handles rollback on failure
             formatted = f"{prefix}{next_seq:04d}"
             if os.getenv("INVOICE_NUM_DEBUG"):

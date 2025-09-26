@@ -12,6 +12,7 @@ Expectations:
 - Attempting payment update on a cancelled invoice should be rejected (future refinement) -- for now we just ensure status persists.
 """
 
+
 @pytest.mark.asyncio
 async def test_invoice_soft_delete_vs_cancel_access(auth_client: AsyncClient):
     # Create two invoices
@@ -62,4 +63,3 @@ async def test_invoice_soft_delete_vs_cancel_access(auth_client: AsyncClient):
     det2_body = det2.json().get("data", det2.json())
     assert det2_body.get("is_deleted") is False
     # Business rule placeholder: is_cancelled True should remain visible (could assert once model exposes field)
-

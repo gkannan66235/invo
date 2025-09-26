@@ -19,6 +19,7 @@ Behavior Matrix:
         - No per-test rollback (state leakage possible across tests).
 """
 
+from contextlib import suppress
 import sys
 from pathlib import Path
 import os
@@ -562,6 +563,73 @@ async def db_session(_test_engine):  # type: ignore[override]  # noqa: D401
                 await conn.close()
             except Exception:  # noqa: BLE001
                 pass
+
+# ---------------------------------------------------------------------------
+# SQLite fallback: lightweight per-test data isolation
+# ---------------------------------------------------------------------------
+# Rationale:
+#   In FAST_TESTS (SQLite) mode we currently share a single file-based database
+#   across the entire test session. This led to order-dependent failures where
+#   earlier tests populated domain tables (customers, invoices, inventory, etc.)
+#   and later contract/smoke tests that assert "first create" semantics (e.g.,
+#   duplicate_warning == False, first daily invoice sequence == 0001) observed
+#   leftover rows. Postgres path already gets transactional SAVEPOINT isolation.
+#   Here we introduce an autouse fixture that, AFTER each test, deletes rows
+#   from all domain tables while preserving auth/seed data (users) so that
+#   subsequent tests see a near-pristine state without re-running migrations.
+#
+#   This keeps the fast feedback loop while restoring determinism.
+#
+#   If a future test genuinely relies on state accumulation across tests, it
+#   can disable this behavior by setting DISABLE_SQLITE_FUNCTION_ISOLATION=1.
+# ---------------------------------------------------------------------------
+from sqlalchemy import text as _raw_text  # noqa: E402  (placed after top-level imports intentionally)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _sqlite_function_isolation(db_session):  # noqa: D401
+    """Per-test cleanup for SQLite fast path (no-op for Postgres).
+
+    Strategy:
+        - If TEST_DB_URL is set (Postgres) -> return immediately (isolation handled elsewhere).
+        - If disabled via DISABLE_SQLITE_FUNCTION_ISOLATION -> return.
+        - After the test body (yield), iterate over SQLAlchemy metadata tables
+          in reverse dependency order and issue DELETE statements, skipping
+          preserved tables (users/auth + Alembic version).
+        - Re-seeding users is unnecessary when preserving the user table.
+    """
+    if os.getenv("TEST_DB_URL"):
+        # Postgres path already isolated with SAVEPOINTs; no cleanup needed.
+        return
+    if os.getenv("DISABLE_SQLITE_FUNCTION_ISOLATION") == "1":
+        return
+
+    # Pre-yield: nothing to do
+    yield
+
+    # Post-test cleanup
+    try:
+        # local import to avoid early import side-effects
+        from src.models.database import Base
+    except Exception:  # noqa: BLE001
+        return  # If models not available, silently skip
+
+    # Preserve auth users + alembic version metadata (if present)
+    preserve = {"users", "alembic_version"}
+    # Ensure any pending work is flushed (best-effort) before deletes
+    with suppress(Exception):
+        await db_session.flush()
+
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name in preserve:
+            continue
+        # Best-effort delete; ignore errors so one failing table doesn't block others
+        stmt = _raw_text(f'DELETE FROM "{table.name}"')
+        with suppress(Exception):
+            await db_session.execute(stmt)
+
+    with suppress(Exception):
+        await db_session.commit()
 
 # ---------------------------------------------------------------------------
 # Progress Percentage Output (with optional disable + per-test duration)

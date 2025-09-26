@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, status, HTTPException, Request, Query
 from typing import Any, Dict, List, Optional
 from datetime import datetime, UTC
 import re
+import math
 from uuid import uuid4
 from .auth import get_current_user, User
 
@@ -46,9 +47,9 @@ _CUSTOMERS: List[Dict[str, Any]] = []
 @customers_router.get("", status_code=status.HTTP_200_OK)
 @customers_router.get("/", status_code=status.HTTP_200_OK)
 async def list_customers(  # noqa: D401
-        search: Optional[str] = Query(None),
-        customer_type: Optional[str] = Query(None),
-        current_user: User = Depends(require_auth),  # noqa: ARG001
+    search: Optional[str] = Query(None),
+    customer_type: Optional[str] = Query(None),
+    _current_user: User = Depends(require_auth),  # noqa: ARG001 - auth side-effect
 ):
     results = _CUSTOMERS
     if search:
@@ -68,7 +69,7 @@ async def list_customers(  # noqa: D401
 
 @customers_router.post("", status_code=status.HTTP_201_CREATED)
 @customers_router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_customer(payload: Dict[str, Any], current_user: User = Depends(require_auth)):  # noqa: D401, ARG001
+async def create_customer(payload: Dict[str, Any], _current_user: User = Depends(require_auth)):  # noqa: D401, ARG001
     if not payload.get("name"):
         exc = HTTPException(
             status_code=422, detail="Missing required field: name")
@@ -105,63 +106,52 @@ async def create_customer(payload: Dict[str, Any], current_user: User = Depends(
 
 inventory_router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
 
-_INVENTORY_ITEMS: List[Dict[str, Any]] = [
-    {
-        "id": 1,
-        "product_code": "PRD001",
-        "description": "Sample Pump",
-        "hsn_code": "8413",
-        "gst_rate": 18,
-        "current_stock": 10,
-        "minimum_stock_level": 2,
-        "purchase_price": 1000.0,
-        "selling_price": 1500.0,
-        "category": "pump",
-        "is_active": True,
-        "created_at": datetime.now(UTC).isoformat(),
-        "updated_at": datetime.now(UTC).isoformat(),
-    }
-]
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+from ..config.database import get_async_db_dependency  # noqa: E402
+from src.services.inventory_service import (  # noqa: E402
+    create_inventory_item as svc_create_inventory_item,
+    list_inventory_items as svc_list_inventory_items,
+    update_inventory_item as svc_update_inventory_item,
+    InventoryValidationError,
+    InventoryNotFound,
+)
 
 
 @inventory_router.get("", status_code=status.HTTP_200_OK)
 @inventory_router.get("/", status_code=status.HTTP_200_OK)
 @inventory_router.get("/items", status_code=status.HTTP_200_OK)
 async def list_inventory_items(  # noqa: D401
-        category: Optional[str] = Query(None),
-        search: Optional[str] = Query(None),
-        low_stock: Optional[bool] = Query(False),
-        page: int = 1,
-        page_size: int = 10,
-        current_user: User = Depends(require_auth),  # noqa: ARG001
+    category: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    low_stock: Optional[bool] = Query(False),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    _current_user: User = Depends(require_auth),  # noqa: ARG001
+    db: AsyncSession = Depends(get_async_db_dependency),
 ):
-    items = _INVENTORY_ITEMS
-    # Clamp page_size to a sane maximum (contract expectation: cap at 100)
-    if page_size < 1:
-        page_size = 1
-    elif page_size > 100:
-        page_size = 100
-    if category:
-        items = [i for i in items if i["category"] == category]
-    if search:
-        s = search.lower()
-        items = [i for i in items if s in i["description"].lower()]
-    if low_stock:
-        items = [i for i in items if i["current_stock"]
-                 <= i["minimum_stock_level"]]
-    # Simple pagination slice
-    items_slice = items[:page_size]
+    # Fetch more than we need to derive total without a separate count (cap 5 pages worth)
+    fetch_limit = min(page_size * 5, 500)
+    raw_items = await svc_list_inventory_items(
+        db, category=category, search=search, low_stock=low_stock or False, limit=fetch_limit
+    )
+    total_items = len(raw_items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_items = raw_items[start:end]
+    total_pages = max(1, math.ceil(total_items / page_size))
+    has_next = page < total_pages
+    has_previous = page > 1
     return {
         "status": "success",
         "data": {
-            "items": items_slice,
+            "items": page_items,
             "pagination": {
                 "page": page,
                 "page_size": page_size,
-                "total_items": len(items),
-                "total_pages": 1,
-                "has_next": False,
-                "has_previous": False,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "has_next": has_next,
+                "has_previous": has_previous,
             },
         },
     }
@@ -169,53 +159,28 @@ async def list_inventory_items(  # noqa: D401
 
 @inventory_router.post("", status_code=status.HTTP_201_CREATED)
 @inventory_router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_inventory_item(payload: Dict[str, Any], current_user: User = Depends(require_auth)):
-    required = ["product_code", "description", "hsn_code",
-                "gst_rate", "selling_price", "category"]
-    missing = [f for f in required if payload.get(f) in (None, "")]
-    if missing:
-        exc = HTTPException(
-            status_code=422, detail=f"Missing required fields: {', '.join(missing)}")
-        setattr(exc, "code", "VALIDATION_ERROR")
-        raise exc
-    # Simple uniqueness check
-    if any(i["product_code"] == payload["product_code"] for i in _INVENTORY_ITEMS):
-        exc = HTTPException(
-            status_code=400, detail="Product code already exists")
-        setattr(exc, "code", "DUPLICATE_PRODUCT_CODE")
-        raise exc
-    new_id = max([i["id"] for i in _INVENTORY_ITEMS] + [0]) + 1
-    now = datetime.now(UTC).isoformat()
-    item = {
-        "id": new_id,
-        "product_code": payload["product_code"],
-        "description": payload["description"],
-        "hsn_code": payload["hsn_code"],
-        "gst_rate": payload.get("gst_rate", 0),
-        "current_stock": payload.get("current_stock", 0),
-        "minimum_stock_level": payload.get("minimum_stock_level", 0),
-        "purchase_price": payload.get("purchase_price", 0),
-        "selling_price": payload.get("selling_price", 0),
-        "category": payload.get("category", "spare_part"),
-        "is_active": True,
-        "created_at": now,
-        "updated_at": now,
-    }
-    _INVENTORY_ITEMS.append(item)
-    return {"status": "success", "data": {"item": item}}
+async def create_inventory_item(payload: Dict[str, Any], _current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_async_db_dependency)):  # noqa: ARG001
+    try:
+        item = await svc_create_inventory_item(db, payload)
+        return {"status": "success", "data": {"item": item}}
+    except InventoryValidationError as e:
+        http_exc = HTTPException(status_code=422, detail=str(e))
+        setattr(http_exc, "code", "VALIDATION_ERROR")
+        raise http_exc from e
 
 
 @inventory_router.patch("/{item_id}")
-async def update_inventory_item(item_id: int, payload: Dict[str, Any], current_user: User = Depends(require_auth)):
-    for item in _INVENTORY_ITEMS:
-        if item["id"] == item_id:
-            # Apply allowed fields
-            for f in ["description", "gst_rate", "current_stock", "minimum_stock_level", "purchase_price", "selling_price", "category", "is_active"]:
-                if f in payload and payload[f] is not None:
-                    item[f] = payload[f]
-            item["updated_at"] = datetime.now(UTC).isoformat()
-            return {"status": "success", "data": {"item": item}}
-    raise HTTPException(status_code=404, detail="Inventory item not found")
+async def update_inventory_item(item_id: str, payload: Dict[str, Any], _current_user: User = Depends(require_auth), db: AsyncSession = Depends(get_async_db_dependency)):  # noqa: ARG001
+    try:
+        item = await svc_update_inventory_item(db, item_id, payload)
+        return {"status": "success", "data": {"item": item}}
+    except InventoryNotFound as e:
+        raise HTTPException(
+            status_code=404, detail="Inventory item not found") from e
+    except InventoryValidationError as e:
+        http_exc = HTTPException(status_code=422, detail=str(e))
+        setattr(http_exc, "code", "VALIDATION_ERROR")
+        raise http_exc from e
 
 
 orders_router = APIRouter()
@@ -224,7 +189,7 @@ _ORDERS: List[Dict[str, Any]] = []
 
 @orders_router.post("", status_code=status.HTTP_201_CREATED)
 @orders_router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_order(payload: Dict[str, Any], current_user: User = Depends(require_auth)):  # noqa: D401, ARG001
+async def create_order(payload: Dict[str, Any], _current_user: User = Depends(require_auth)):  # noqa: D401, ARG001
     items = payload.get("items", [])
     if not items:
         exc = HTTPException(
@@ -286,7 +251,7 @@ async def create_order(payload: Dict[str, Any], current_user: User = Depends(req
 
 @orders_router.get("", status_code=status.HTTP_200_OK)
 @orders_router.get("/", status_code=status.HTTP_200_OK)
-async def list_orders(current_user: User = Depends(require_auth)):  # noqa: ARG001
+async def list_orders(_current_user: User = Depends(require_auth)):  # noqa: ARG001
     return {
         "status": "success",
         "data": {
