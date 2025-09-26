@@ -37,7 +37,8 @@ from src.config.settings import get_default_gst_rate
 
 class InvoiceNotFound(Exception):
     """Raised when an invoice cannot be found."""
-    code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])  # type: ignore[index]
+    code = ERROR_CODES.get("invoice_not_found",
+                           ERROR_CODES["not_found"])  # type: ignore[index]
 
 
 class CustomerNotFound(Exception):
@@ -106,7 +107,8 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
                 await asyncio.sleep(0.005)
                 continue
             raise
-    raise RuntimeError("Failed to allocate invoice number after retries (atomic upsert)")
+    raise RuntimeError(
+        "Failed to allocate invoice number after retries (atomic upsert)")
 
 
 def _recompute_amounts(invoice: Invoice):
