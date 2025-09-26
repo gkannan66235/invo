@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { invoiceApi, Invoice } from '@/lib/api';
+import { formatINR } from '@/lib/format';
 import { useParams } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -31,7 +32,7 @@ export default function PrintableInvoicePage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `invoice_${invoice?.invoice_number || id}.pdf`;
+  a.download = `invoice-${invoice?.invoice_number || id}.pdf`; // FR-025 filename pattern
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (e:any) {
@@ -87,9 +88,9 @@ export default function PrintableInvoicePage() {
           <tr className="border-b">
             <td className="py-2 align-top font-medium">{invoice.service_type}</td>
             <td className="py-2 align-top max-w-sm">{invoice.service_description}</td>
-            <td className="py-2 text-right">₹{invoice.amount.toLocaleString()}</td>
-            <td className="py-2 text-right">₹{invoice.gst_amount.toLocaleString()}</td>
-            <td className="py-2 text-right font-medium">₹{invoice.total_amount.toLocaleString()}</td>
+            <td className="py-2 text-right">{formatINR(invoice.amount)}</td>
+            <td className="py-2 text-right">{formatINR(invoice.gst_amount)}</td>
+            <td className="py-2 text-right font-medium">{formatINR(invoice.total_amount)}</td>
           </tr>
         </tbody>
       </table>
@@ -98,15 +99,15 @@ export default function PrintableInvoicePage() {
         <div className="w-64">
           <div className="flex justify-between py-1 text-sm">
             <span>Subtotal</span>
-            <span>₹{invoice.amount.toLocaleString()}</span>
+            <span>{formatINR(invoice.amount)}</span>
           </div>
           <div className="flex justify-between py-1 text-sm">
             <span>GST ({invoice.gst_rate}%)</span>
-            <span>₹{invoice.gst_amount.toLocaleString()}</span>
+            <span>{formatINR(invoice.gst_amount)}</span>
           </div>
           <div className="flex justify-between py-1 text-sm font-medium border-t mt-2 pt-2">
             <span>Total</span>
-            <span>₹{invoice.total_amount.toLocaleString()}</span>
+            <span>{formatINR(invoice.total_amount)}</span>
           </div>
         </div>
       </div>

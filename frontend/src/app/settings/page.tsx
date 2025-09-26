@@ -24,6 +24,10 @@ export default function SettingsPage() {
 
   const update = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (user?.role && user.role !== 'admin') {
+      toast.error('Only admin can modify settings');
+      return;
+    }
     setSaving(true);
     try {
       const updated = await settingsApi.update({ gst_default_rate: parseFloat(gstRate) });
@@ -46,7 +50,9 @@ export default function SettingsPage() {
           <label className="block text-sm font-medium mb-1">Default GST Rate (%)</label>
           <input className="input" value={gstRate} onChange={e=>setGstRate(e.target.value)} required />
         </div>
-        <button type="submit" className="btn btn-primary disabled:opacity-50" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+        <button type="submit" className="btn btn-primary disabled:opacity-50" disabled={saving || (user && user.role !== 'admin')}>
+          {saving ? 'Saving...' : (user && user.role !== 'admin' ? 'Read Only' : 'Save')}
+        </button>
       </form>
       {settings && (
         <div className="text-sm text-gray-600">

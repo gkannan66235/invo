@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { invoiceApi, CreateInvoiceRequest } from '@/lib/api';
+import { formatINR } from '@/lib/format';
 import { X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -253,15 +254,15 @@ export default function InvoiceForm({ invoice, onClose, onSuccess }: InvoiceForm
             <div className="bg-gray-50 p-4 rounded-lg space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Service Amount:</span>
-                <span>₹{amount.toLocaleString()}</span>
+                <span>{formatINR(amount)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span>GST ({gstRate}%):</span>
-                <span>₹{gstAmount.toLocaleString()}</span>
+                <span>{formatINR(gstAmount)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
                 <span>Total Amount:</span>
-                <span>₹{totalAmount.toLocaleString()}</span>
+                <span>{formatINR(totalAmount)}</span>
               </div>
             </div>
           </div>

@@ -79,6 +79,8 @@ export interface Customer {
   customer_type?: string;
   duplicate_warning?: boolean; // present on create when duplicate detected
   created_at?: string;
+  address?: Record<string, any> | null;
+  city?: string | null;
 }
 
 export interface CreateCustomerRequest {
@@ -188,8 +190,8 @@ export const invoiceApi = {
 
 // Customers API
 export const customersApi = {
-  list: async (): Promise<{ customers: Customer[]; pagination: any }> => {
-    const response = await api.get('/api/v1/customers');
+  list: async (search?: string): Promise<{ customers: Customer[]; pagination: any }> => {
+    const response = await api.get('/api/v1/customers', { params: search ? { search } : undefined });
     return response.data;
   },
   create: async (data: CreateCustomerRequest): Promise<Customer & { duplicate_warning?: boolean }> => {

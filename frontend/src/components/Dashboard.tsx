@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { useQuery } from 'react-query';
 import { invoiceApi, healthApi } from '@/lib/api';
+import { formatINR } from '@/lib/format';
 import { 
   Building2, 
   FileText, 
@@ -61,7 +62,7 @@ export default function Dashboard() {
   // Stats calculations
   const stats = {
     totalInvoices: invoices.length,
-    totalAmount: invoices.reduce((sum: number, inv: any) => sum + inv.total_amount, 0),
+  totalAmount: invoices.reduce((sum: number, inv: any) => sum + (Number(inv.total_amount) || 0), 0),
     paidInvoices: invoices.filter((inv: any) => inv.status === 'paid').length,
     pendingInvoices: invoices.filter((inv: any) => inv.status === 'sent').length,
   };
@@ -170,7 +171,7 @@ export default function Dashboard() {
               <DollarSign className="h-8 w-8 text-green-600 mr-3" />
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold text-gray-900">₹{stats.totalAmount.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-gray-900">{formatINR(stats.totalAmount)}</p>
               </div>
             </div>
           </div>
@@ -296,7 +297,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </td>
-                    <td className="font-medium">₹{invoice.total_amount.toLocaleString()}</td>
+                    <td className="font-medium">{formatINR(invoice.total_amount)}</td>
                     <td>
                       <select
                         value={invoice.status}
