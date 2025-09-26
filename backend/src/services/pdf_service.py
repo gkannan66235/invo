@@ -6,28 +6,52 @@ Future (Sprint 2+): full HTML template rendering with Playwright print-to-pdf, c
 """
 from __future__ import annotations
 from typing import Optional
+from datetime import datetime, UTC
+import logging
 
-# For Sprint 1 we avoid heavy dependencies; later we'll integrate Playwright.
-# A tiny fallback: generate a very simple PDF header manually (not standards-complete but acceptable for placeholder)
+LOGGER = logging.getLogger("pdf_service")
 
-_PDF_PREAMBLE = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
-_PDF_BODY_TEMPLATE = "1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources <<>> >>endobj\n4 0 obj<< /Length {length} >>stream\n{stream}\nendstream endobj\nxref\n0 5\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000117 00000 n \n0000000234 00000 n \ntrailer<< /Size 5 /Root 1 0 R >>\nstartxref\n{start}\n%%EOF"
+# Minimal single-page PDF template with dynamic fields.
+_PDF_TEMPLATE = ("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"
+                 "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+                 "2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n"
+                 "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n"
+                 "4 0 obj<</Length {length}>>stream\n{stream}\nendstream endobj\n"
+                 "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+                 "xref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000055 00000 n \n0000000108 00000 n \n0000000279 00000 n \n0000000400 00000 n \n"
+                 "trailer<</Size 6/Root 1 0 R>>\nstartxref\n{start}\n%%EOF")
 
 
-def generate_invoice_pdf(invoice_id: str, total: Optional[str] = None) -> bytes:
+def generate_invoice_pdf(invoice, customer: Optional[object] = None) -> bytes:  # type: ignore[no-untyped-def]
     """Return placeholder PDF bytes for an invoice.
 
     Args:
-        invoice_id: Identifier of the invoice
-        total: Optional total amount string to embed
+        invoice: ORM invoice instance with invoice_number, total_amount attributes
+        customer: optional customer instance (unused in stub)
     """
-    text = f"Invoice {invoice_id} Generated (placeholder) Total: {total or 'N/A'}"
-    # Minimal PDF text object (not production grade)
-    stream_content = f"BT /F1 12 Tf 12 100 Td ({text}) Tj ET".encode(
-        "latin-1", "ignore")
-    body = _PDF_BODY_TEMPLATE.format(length=len(
-        stream_content), stream=stream_content.decode("latin-1"), start=300+len(stream_content))
-    return _PDF_PREAMBLE + body.encode("latin-1")
-
+    try:
+        inv_num = getattr(invoice, "invoice_number", "UNKNOWN")
+        total = getattr(invoice, "total_amount", None)
+        ts = datetime.now(UTC).isoformat()
+        text_lines = [
+            f"Invoice {inv_num}",
+            f"Generated: {ts}",
+            f"Total: {total}" if total is not None else "Total: N/A",
+            "-- Placeholder PDF --",
+        ]
+        # Build PDF text drawing commands (simple text lines separated vertically by 14pt)
+        y = 170
+        parts = ["BT /F1 12 Tf"]
+        for line in text_lines:
+            parts.append(f"72 {y} Td ({line}) Tj")
+            y -= 14
+            parts.append("T*")  # move to next line (simplistic)
+        parts.append("ET")
+        stream_content = " ".join(parts).encode("latin-1", "ignore")
+        body = _PDF_TEMPLATE.format(length=len(stream_content), stream=stream_content.decode("latin-1"), start=500+len(stream_content))
+        return body.encode("latin-1")
+    except Exception as exc:  # pragma: no cover
+        LOGGER.error("Failed to generate stub PDF: %s", exc)
+        raise RuntimeError("PDF generation failed") from exc
 
 __all__ = ["generate_invoice_pdf"]

@@ -24,7 +24,7 @@ T001. Ensure branch `003-customer-nsupport-only` is active & sync with main (no 
 - Output: Clean working tree
 - File(s): n/a
 
-T002. Backend dependency review: add Playwright dependency & PDF helper placeholder
+T002. Backend dependency review: add Playwright dependency & PDF helper placeholder [X]
 
 - File(s): `backend/requirements.txt` (or introduce optional extras), new `backend/src/services/pdf_service.py`
 - Dependency: T001
