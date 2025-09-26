@@ -29,24 +29,23 @@ async def create_customer(db: AsyncSession, payload: Dict[str, Any]) -> Dict[str
 
     customer = Customer(name=name, phone=phone, email=email)
 
-    # Duplicate detection
-    mobile_norm = customer.mobile_normalized or _normalize_mobile(phone)
+    # Persist first, then compute duplicate flag based on total active count sharing mobile (count>1)
+    db.add(customer)
+    await db.commit()
+    await db.refresh(customer)
+
     duplicate_warning = False
+    mobile_norm = customer.mobile_normalized or _normalize_mobile(phone)
     if mobile_norm:
         q = await db.execute(
             select(Customer.id).where(
                 Customer.mobile_normalized == mobile_norm,
-                Customer.is_active.is_(True)
+                Customer.is_active.is_(True),
+                Customer.id != customer.id  # exclude self
             ).limit(1)
         )
-        existing = q.scalar_one_or_none()
-        # If we found an existing row AND it's not the same (new object, so different)
-        if existing is not None:
+        if q.scalar_one_or_none() is not None:
             duplicate_warning = True
-
-    db.add(customer)
-    await db.commit()
-    await db.refresh(customer)
 
     return _serialize_customer(customer, duplicate_warning=duplicate_warning)
 

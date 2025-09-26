@@ -84,7 +84,7 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
         """
         INSERT INTO day_invoice_sequences (date_key, last_seq)
         VALUES (:date_key, 1)
-        ON CONFLICT(date_key) DO UPDATE SET last_seq = last_seq + 1
+        ON CONFLICT(date_key) DO UPDATE SET last_seq = day_invoice_sequences.last_seq + 1
         RETURNING last_seq
         """
     )
@@ -95,6 +95,26 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
         try:
             result = await db.execute(stmt, {"date_key": date_key})
             next_seq = int(result.scalar_one())
+            # Repair scenario: if sequence >1 but no invoices yet for this date (e.g. prior aborted attempts)
+            if next_seq > 1:
+                check = await db.execute(
+                    text(
+                        "SELECT COUNT(1) FROM invoices WHERE invoice_number LIKE :prefix"),
+                    {"prefix": f"INV-{date_key}-%"},
+                )
+                inv_count = int(check.scalar_one())
+                if inv_count == 0:
+                    # Reset sequence back to 0 then re-issue 1 atomically
+                    await db.execute(
+                        text(
+                            "UPDATE day_invoice_sequences SET last_seq=0 WHERE date_key=:date_key"),
+                        {"date_key": date_key},
+                    )
+                    await db.commit()
+                    # Re-run insert to obtain 1
+                    result = await db.execute(stmt, {"date_key": date_key})
+                    next_seq = int(result.scalar_one())
+            # Do not commit here; caller's transaction boundary handles rollback on failure
             formatted = f"{prefix}{next_seq:04d}"
             if os.getenv("INVOICE_NUM_DEBUG"):
                 logging.getLogger("invoice_number").warning(
