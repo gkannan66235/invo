@@ -127,6 +127,63 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
+
+# Backwards compatibility fixture name used by newly added contract skeleton tests
+@pytest_asyncio.fixture
+async def app_client(async_client: AsyncClient) -> AsyncGenerator[AsyncClient, None]:  # noqa: D401
+    """Alias fixture so contract tests referencing app_client keep working."""
+    # Provide fast auth header similarly to auth_client fixture for endpoints requiring auth
+    async_client.headers.update({"Authorization": "Bearer test.fast.token"})
+    yield async_client
+
+
+@pytest_asyncio.fixture
+async def seeded_customer_id(db_session) -> AsyncGenerator[str, None]:  # noqa: D401
+    """Create and return a sample customer id for invoice contract tests."""
+    from src.models.database import Customer  # local import
+    c = Customer(name="Seed Customer", phone="9123456789", email="seed@example.com",
+                 customer_type="individual", is_active=True, address={})
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+    yield str(c.id)
+
+
+@pytest_asyncio.fixture
+async def seeded_invoice_id(db_session, seeded_customer_id: str) -> AsyncGenerator[str, None]:  # noqa: D401
+    """Create and return a basic invoice id for pdf/audit contract tests."""
+    from uuid import uuid4
+    from datetime import datetime, UTC
+    from src.models.database import Invoice, PaymentStatus
+    from uuid import UUID as _UUID
+    import random
+    # Use a random 4-digit suffix to avoid unique constraint violations across tests
+    random_suffix = random.randint(1000, 9999)
+    inv = Invoice(
+        id=uuid4(),
+        invoice_number=f"INV-{datetime.now(UTC).strftime('%Y%m%d')}-{random_suffix}",
+        customer_id=_UUID(seeded_customer_id),
+        subtotal=100,
+        discount_amount=0,
+        gst_amount=18,
+        total_amount=118,
+        paid_amount=0,
+        gst_rate=18,
+        service_type="test",
+        place_of_supply="KA",
+        gst_treatment="taxable",
+        reverse_charge=False,
+        payment_status=PaymentStatus.PENDING.value,
+        notes="seed",
+        branding_snapshot={"currency": "INR"},
+        gst_rate_snapshot=18,
+        settings_snapshot={"default_gst_rate": 18},
+    )
+    db_session.add(inv)
+    await db_session.commit()
+    await db_session.refresh(inv)
+    yield str(inv.id)
+
  # (Removed legacy auth_headers fixture; use auth_client fixture instead)
 
 

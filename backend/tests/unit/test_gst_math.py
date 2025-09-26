@@ -18,10 +18,14 @@ async def test_gst_default_applied_when_omitted(auth_client: AsyncClient):
     assert resp.status_code == 201
     body = resp.json()
     inv = body.get("data", body)
-    # Default from settings (18 unless overridden)
-    assert inv["gst_rate"] == 18
-    assert inv["gst_amount"] == 180
-    assert inv["total_amount"] == 1180
+    # Default from settings (commonly 18 unless overridden by other test manipulating env)
+    from src.config.settings import get_default_gst_rate  # type: ignore
+    expected_rate = get_default_gst_rate()
+    assert inv["gst_rate"] == expected_rate
+    expected_gst = round(1000 * expected_rate / 100, 2)
+    expected_total = round(1000 + expected_gst, 2)
+    assert inv["gst_amount"] == expected_gst
+    assert inv["total_amount"] == expected_total
 
 
 @pytest.mark.asyncio

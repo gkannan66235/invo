@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 from sqlalchemy import select
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.database import Customer
 
@@ -65,7 +66,12 @@ async def get_customer(db: AsyncSession, customer_id: str) -> Optional[Dict[str,
 
 
 async def update_customer(db: AsyncSession, customer_id: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    res = await db.execute(select(Customer).where(Customer.id == customer_id))
+    try:
+        customer_uuid = UUID(customer_id)
+    except Exception:
+        # Invalid UUID format
+        return None
+    res = await db.execute(select(Customer).where(Customer.id == customer_uuid))
     customer = res.scalar_one_or_none()
     if not customer:
         return None

@@ -5,14 +5,15 @@ expected metric name (api_request_duration_ms histogram) or falls back gracefull
 """
 import pytest
 
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 
 from src.main import app
 
 
 @pytest.mark.asyncio
 async def test_prometheus_metrics_endpoint_basic():  # noqa: D401
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Trigger at least one application route to register custom metrics with OTEL.
         await client.get("/health")
         resp = await client.get("/metrics")

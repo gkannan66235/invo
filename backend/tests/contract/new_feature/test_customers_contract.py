@@ -44,6 +44,7 @@ async def test_update_customer_mobile_normalizes(app_client: AsyncClient):
     # Create a customer
     r = await app_client.post('/api/v1/customers', json={'name': 'Norm Test', 'phone': '+91-9123456789'})
     assert r.status_code in (200, 201)
+    # Real implementation returns UUID string; use it directly
     cid = r.json()['id']
 
     # Update with alternative formatting

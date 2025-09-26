@@ -8,12 +8,19 @@ from passlib.context import CryptContext
 from .routers.auth import router as auth_router
 from .routers.invoices import router as invoice_router
 from .routers.system import router as system_router
+try:  # optional settings router
+    from .routers.settings import router as settings_router
+except ImportError:  # pragma: no cover
+    settings_router = None  # type: ignore
 try:
     # Prometheus metrics (T032)
     from .routers.metrics import router as metrics_router
 except ImportError:  # pragma: no cover - router may not exist yet during partial installs
     metrics_router = None  # type: ignore
-from .routers import customers_router, inventory_router, orders_router
+# keep placeholder inventory & orders
+from .routers import inventory_router, orders_router
+# Use real DB-backed customers router (replaces placeholder in routers.__init__)
+from .routers.customers import router as customers_router
 import logging
 import time
 from datetime import datetime, UTC
@@ -512,8 +519,8 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
     # Include API routers
     app.include_router(auth_router, prefix="/api/v1/auth",
                        tags=["Authentication"])
-    app.include_router(
-        customers_router, prefix="/api/v1/customers", tags=["Customers"])
+    # Real customers router already defines its own prefix (/api/v1/customers)
+    app.include_router(customers_router)
     app.include_router(
         inventory_router, prefix="/api/v1/inventory", tags=["Inventory"])
     app.include_router(orders_router, prefix="/api/v1/orders", tags=["Orders"])
@@ -521,6 +528,8 @@ def setup_routes(app: FastAPI) -> None:  # noqa: C901 (router wiring simplicity)
         invoice_router, prefix="/api/v1/invoices", tags=["Invoices"])
     app.include_router(system_router, prefix="/api/v1/system",
                        tags=["System"])  # health/readiness
+    if settings_router is not None:
+        app.include_router(settings_router)
     if metrics_router is not None:
         # Exposes /metrics (Prometheus exposition format) without API prefix
         app.include_router(metrics_router)
