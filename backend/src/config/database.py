@@ -179,7 +179,29 @@ def receive_after_cursor_execute(conn, cursor, statement, parameters, context, e
 def create_database_tables():
     """Create all database tables."""
     try:
+        # Ensure all models are loaded (import side-effects) before creating tables.
+        # This is defensive in case newer models (e.g., DayInvoiceSequence) are referenced
+        # only at runtime in services and were not imported during early bootstrap.
+        try:  # local import inside function to avoid circular import during module import
+            from ..models.database import DayInvoiceSequence  # noqa: F401
+        except Exception:  # noqa: BLE001
+            pass
+
         Base.metadata.create_all(bind=engine)
+
+        # Defensive post-check: if a newly added table (like day_invoice_sequences) somehow
+        # was omitted due to late import ordering, create it explicitly. This prevents
+        # OperationalError: no such table: day_invoice_sequences in the SQLite fast-test path.
+        try:
+            with engine.connect() as conn:  # noqa: SIM117
+                insp = conn.dialect.get_inspector(conn)
+                existing = set(insp.get_table_names())
+                if 'day_invoice_sequences' not in existing:
+                    from ..models.database import DayInvoiceSequence as _DIS  # noqa: WPS433
+                    _DIS.__table__.create(bind=engine, checkfirst=True)
+        except Exception:  # noqa: BLE001
+            # Non-fatal; if this fails normal test runs will surface issues.
+            pass
         logger.info("Database tables created successfully")
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
@@ -189,8 +211,25 @@ def create_database_tables():
 async def create_database_tables_async():
     """Create all database tables asynchronously."""
     try:
+        # Ensure models (esp. DayInvoiceSequence) are imported prior to create.
+        try:  # noqa: WPS229
+            from ..models.database import DayInvoiceSequence  # noqa: F401
+        except Exception:  # noqa: BLE001
+            pass
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # Post-check inside same transaction/connection
+
+            async def _post_check(sync_conn):  # type: ignore[no-untyped-def]
+                try:
+                    insp = sync_conn.dialect.get_inspector(sync_conn)
+                    existing = set(insp.get_table_names())
+                    if 'day_invoice_sequences' not in existing:
+                        from ..models.database import DayInvoiceSequence as _DIS  # noqa: WPS433
+                        _DIS.__table__.create(bind=sync_conn, checkfirst=True)
+                except Exception:  # noqa: BLE001
+                    pass
+            await conn.run_sync(_post_check)
         logger.info("Database tables created successfully (async)")
     except Exception as e:
         logger.error(f"Failed to create database tables (async): {e}")

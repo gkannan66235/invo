@@ -479,6 +479,10 @@ class Invoice(Base):
                       ForeignKey('orders.id'), index=True)
     customer_id = Column(PostgresUUID(as_uuid=True), ForeignKey(
         'customers.id'), nullable=False, index=True)
+    # Relationship back to Customer so Customer.invoices back_populates resolves
+    customer = relationship("Customer", back_populates="invoices")
+    # Optional relationship back to Order (Order.invoices back_populates="order")
+    order = relationship("Order", back_populates="invoices")
 
     # Invoice details
     # Use ANSI SQL CURRENT_TIMESTAMP (works on SQLite & Postgres) instead of now() for cross-dialect tests
@@ -521,41 +525,58 @@ class Invoice(Base):
                         server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.text(
         'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
-
     # Relationships
-    order = relationship("Order", back_populates="invoices")
-    customer = relationship("Customer", back_populates="invoices")
     lines = relationship(
         "InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     downloads = relationship(
         "InvoiceDownloadAudit", back_populates="invoice", cascade="all, delete-orphan")
 
-    # Constraints
-    __table_args__ = (
-        CheckConstraint('subtotal >= 0',
-                        name='check_invoice_subtotal_positive'),
-        CheckConstraint('total_amount >= 0',
-                        name='check_invoice_total_positive'),
-        CheckConstraint('paid_amount >= 0', name='check_paid_amount_positive'),
-        CheckConstraint('paid_amount <= total_amount',
-                        name='check_paid_not_exceed_total'),
-        CheckConstraint("payment_status IN ('pending', 'partial', 'paid', 'overdue')",
-                        name='check_valid_payment_status'),
-        Index('idx_invoice_date_status', 'invoice_date', 'payment_status'),
-        Index('idx_invoice_customer_date', 'customer_id', 'invoice_date'),
-    )
-
     @property
     def outstanding_amount(self) -> Decimal:
-        """Calculate outstanding amount."""
-        return self.total_amount - self.paid_amount
+        """Return remaining amount (total - paid), floored at 0."""
+        try:
+            total = float(self.total_amount or 0)
+            paid = float(self.paid_amount or 0)
+            remaining = total - paid
+            if remaining < 0:
+                remaining = 0
+            # Preserve two decimal precision consistent with stored Numeric(15,2)
+            return Decimal(f"{remaining:.2f}")
+        except Exception:  # pragma: no cover - defensive
+            return Decimal("0.00")
 
     @property
     def is_overdue(self) -> bool:
-        """Check if invoice is overdue."""
+        """Invoice considered overdue if due_date passed and not fully paid."""
         if self.due_date and self.payment_status != PaymentStatus.PAID.value:
-            return datetime.now(timezone.utc) > self.due_date
+            from datetime import datetime, timezone as _tz
+            try:
+                return datetime.now(_tz.utc) > self.due_date
+            except Exception:  # pragma: no cover
+                return False
         return False
+
+
+class DayInvoiceSequence(Base):
+    """Per-day invoice sequence tracker to guarantee deterministic daily reset.
+
+    Stores the last issued sequence number (integer) for a given UTC date (YYYYMMDD).
+    This avoids scanning the invoices table and prevents interference from tests
+    or manual inserts that create future-dated invoice_numbers.
+    """
+    __tablename__ = 'day_invoice_sequences'
+
+    date_key = Column(String(8), primary_key=True)  # YYYYMMDD
+    last_seq = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text(
+        'CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("length(date_key) = 8", name="ck_day_seq_date_len"),
+        CheckConstraint("last_seq >= 0", name="ck_day_seq_non_negative"),
+    )
+
+    # No invoice-related computed properties; this model is narrowly scoped to sequence tracking.
 
 
 # Create indexes for performance

@@ -409,6 +409,7 @@ def _register_markers(config):  # noqa: D401
         ("slow", "mark test as slow running"),
         ("auth", "mark test as requiring authentication"),
         ("performance", "mark test as a performance benchmark"),
+        ("smoke", "mark test as a smoke test"),
     ]
     for name, desc in markers:
         config.addinivalue_line("markers", f"{name}: {desc}")

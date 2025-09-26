@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, Any
 from uuid import UUID, uuid4
 from datetime import datetime, UTC
+import os
+import logging
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +26,7 @@ from src.models.database import (
     PaymentStatus,
     GSTTreatment,
     InvoiceDownloadAudit,
+    DayInvoiceSequence,
 )
 from sqlalchemy.exc import IntegrityError
 from src.utils.errors import OverpayNotAllowed, ERROR_CODES
@@ -59,31 +62,51 @@ class CreatedInvoice:
 
 
 async def _generate_invoice_number(db: AsyncSession) -> str:
-    """Generate next invoice number using max sequence for the day.
+    """Generate next invoice number using dedicated day sequence table.
 
-    Avoids reliance on invoice_date (which may use server defaults) by parsing existing invoice_number.
-    Format: INV-YYYYMMDD-NNNN
+    Strategy:
+      - Use (date_key -> last_seq) row in DayInvoiceSequence.
+      - Insert row if absent (last_seq=0), then increment and persist.
+      - Returns formatted invoice number: INV-YYYYMMDD-NNNN
+
+    This prevents interference from legacy/future-dated invoices and avoids
+    scanning the invoices table under concurrency.
     """
     now_utc = datetime.now(UTC)
-    today = now_utc.strftime('%Y%m%d')
-    prefix = f"INV-{today}-"
-    # Fetch max existing sequence for today based on invoice_number pattern
-    from sqlalchemy import desc
-    result = await db.execute(
-        select(Invoice.invoice_number)
-        .where(Invoice.invoice_number.like(f"{prefix}%"))
-        .order_by(desc(Invoice.invoice_number))
-        .limit(1)
-    )
-    last = result.scalar_one_or_none()
-    if last:
+    date_key = now_utc.strftime('%Y%m%d')
+    prefix = f"INV-{date_key}-"
+    # Fetch or create the sequence row; optimistic approach with retry on race
+    for _ in range(5):  # small bounded attempts
+        # Try select existing
+        res = await db.execute(select(DayInvoiceSequence).where(DayInvoiceSequence.date_key == date_key))
+        row = res.scalar_one_or_none()
+        if not row:
+            # Attempt to insert a new row with last_seq=0
+            # type: ignore[arg-type]
+            row = DayInvoiceSequence(date_key=date_key, last_seq=0)
+            db.add(row)
+            try:
+                await db.flush()  # obtain persistence; if race, IntegrityError will be raised
+            except IntegrityError:
+                await db.rollback()
+                # Re-open transaction context after rollback for subsequent operations
+                # (AsyncSession remains but we need a new transaction boundary)
+                continue
+        # Increment sequence
+        next_seq = int(row.last_seq) + 1  # type: ignore[arg-type]
+        row.last_seq = next_seq  # type: ignore[assignment]
         try:
-            seq_part = int(last.rsplit('-', 1)[-1]) + 1
-        except ValueError:
-            seq_part = 1
-    else:
-        seq_part = 1
-    return f"{prefix}{seq_part:04d}"
+            await db.flush()
+            formatted = f"{prefix}{next_seq:04d}"
+            if os.getenv("INVOICE_NUM_DEBUG"):
+                logging.getLogger("invoice_number").warning(
+                    "INVOICE_NUM_DEBUG day_seq date_key=%s issued=%s", date_key, formatted
+                )
+            return formatted
+        except IntegrityError:
+            await db.rollback()
+            continue
+    raise RuntimeError("Failed to allocate invoice number after retries")
 
 
 def _recompute_amounts(invoice: Invoice):
