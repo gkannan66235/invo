@@ -179,7 +179,7 @@ T029. Add new metrics instruments (counters/histograms) and integrate into servi
 - File(s): `backend/src/config/observability.py`, service files
 - Dependencies: T021 T023
 
-T030. Add performance test for PDF generation p95 (<2s) & duplicate lookup (<50ms) [P]
+T030. Add performance test for PDF generation p95 (<2s) & duplicate lookup (<50ms) [P] [X]
 
 - File(s): `backend/src/tests/performance/test_pdf_performance.py`
 - Dependencies: T021
