@@ -19,7 +19,7 @@ Setup → (Contract Tests + Integration Tests + Model Migrations) → Services �
 
 ### Phase A: Setup & Baseline
 
-T001. Ensure branch `003-customer-nsupport-only` is active & sync with main (no uncommitted changes)
+T001. Ensure branch `003-customer-nsupport-only` is active & sync with main (no uncommitted changes) [X]
 
 - Output: Clean working tree
 - File(s): n/a
