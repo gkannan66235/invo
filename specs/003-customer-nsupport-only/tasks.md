@@ -83,32 +83,32 @@ T011. Contract test: Settings API get/patch (GST rate prospective) [P]
 
 ### Phase D: Integration Tests (User Scenarios) – Parallelizable after migrations
 
-T012. Integration test: Invalid Indian mobile rejected scenario [P]
+T012. Integration test: Invalid Indian mobile rejected scenario [P] [X]
 
 - File(s): `backend/src/tests/integration/test_customer_mobile_validation.py`
 - Dependencies: T005
 
-T013. Integration test: Duplicate mobile warning flow [P]
+T013. Integration test: Duplicate mobile warning flow [P] [X]
 
 - File(s): `backend/src/tests/integration/test_customer_duplicate_warning.py`
 - Dependencies: T005
 
-T014. Integration test: Invoice creation INR formatting & totals [P]
+T014. Integration test: Invoice creation INR formatting & totals [P] [X]
 
 - File(s): `backend/src/tests/integration/test_invoice_inr_formatting.py`
 - Dependencies: T005
 
-T015. Integration test: Printable & PDF generation + audit logged [P]
+T015. Integration test: Printable & PDF generation + audit logged [P] [X]
 
 - File(s): `backend/src/tests/integration/test_invoice_pdf_audit.py`
 - Dependencies: T005
 
-T016. Integration test: Settings update prospective GST application [P]
+T016. Integration test: Settings update prospective GST application [P] [X]
 
 - File(s): `backend/src/tests/integration/test_settings_gst_prospective.py`
 - Dependencies: T005
 
-T017. Integration test: Cancelled vs soft-deleted invoice access control [P]
+T017. Integration test: Cancelled vs soft-deleted invoice access control [P] [X]
 
 - File(s): `backend/src/tests/integration/test_invoice_soft_delete_access.py`
 - Dependencies: T005
