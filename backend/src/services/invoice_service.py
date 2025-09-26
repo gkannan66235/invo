@@ -17,7 +17,7 @@ from datetime import datetime, UTC
 import os
 import logging
 
-from sqlalchemy import select, func
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.database import (
@@ -26,7 +26,6 @@ from src.models.database import (
     PaymentStatus,
     GSTTreatment,
     InvoiceDownloadAudit,
-    DayInvoiceSequence,
 )
 from sqlalchemy.exc import IntegrityError
 from src.utils.errors import OverpayNotAllowed, ERROR_CODES
@@ -37,19 +36,18 @@ from src.config.settings import get_default_gst_rate
 
 
 class InvoiceNotFound(Exception):
-    # type: ignore[index]
-    code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])
-    pass
+    """Raised when an invoice cannot be found."""
+    code = ERROR_CODES.get("invoice_not_found", ERROR_CODES["not_found"])  # type: ignore[index]
 
 
 class CustomerNotFound(Exception):
+    """Raised when a referenced customer id does not exist."""
     code = ERROR_CODES["not_found"]  # type: ignore[index]
-    pass
 
 
 class ValidationError(Exception):
+    """Raised when incoming payload fails basic validation rules."""
     code = ERROR_CODES["validation"]  # type: ignore[index]
-    pass
 
 
 # ----------------------------- Helper Data Shapes ---------------------------- #
@@ -62,51 +60,53 @@ class CreatedInvoice:
 
 
 async def _generate_invoice_number(db: AsyncSession) -> str:
-    """Generate next invoice number using dedicated day sequence table.
+    """Generate next invoice number atomically using an UPSERT with RETURNING.
 
-    Strategy:
-      - Use (date_key -> last_seq) row in DayInvoiceSequence.
-      - Insert row if absent (last_seq=0), then increment and persist.
-      - Returns formatted invoice number: INV-YYYYMMDD-NNNN
+    Uses a single INSERT .. ON CONFLICT .. DO UPDATE statement to guarantee
+    that only one concurrent transaction increments the per-day counter at a time.
+    Works for both PostgreSQL and modern SQLite (>=3.35 with RETURNING support).
 
-    This prevents interference from legacy/future-dated invoices and avoids
-    scanning the invoices table under concurrency.
+    Algorithm:
+      INSERT (date_key, last_seq=1) ON CONFLICT(date_key)
+      DO UPDATE SET last_seq = last_seq + 1
+      RETURNING last_seq
+
+    If the encompassing invoice creation later rolls back, the increment rolls
+    back too (no gaps introduced by failed attempts). This eliminates the need
+    for a manual SELECT + UPDATE pattern and avoids lost update races.
     """
     now_utc = datetime.now(UTC)
     date_key = now_utc.strftime('%Y%m%d')
     prefix = f"INV-{date_key}-"
-    # Fetch or create the sequence row; optimistic approach with retry on race
-    for _ in range(5):  # small bounded attempts
-        # Try select existing
-        res = await db.execute(select(DayInvoiceSequence).where(DayInvoiceSequence.date_key == date_key))
-        row = res.scalar_one_or_none()
-        if not row:
-            # Attempt to insert a new row with last_seq=0
-            # type: ignore[arg-type]
-            row = DayInvoiceSequence(date_key=date_key, last_seq=0)
-            db.add(row)
-            try:
-                await db.flush()  # obtain persistence; if race, IntegrityError will be raised
-            except IntegrityError:
-                await db.rollback()
-                # Re-open transaction context after rollback for subsequent operations
-                # (AsyncSession remains but we need a new transaction boundary)
-                continue
-        # Increment sequence
-        next_seq = int(row.last_seq) + 1  # type: ignore[arg-type]
-        row.last_seq = next_seq  # type: ignore[assignment]
+
+    stmt = text(
+        """
+        INSERT INTO day_invoice_sequences (date_key, last_seq)
+        VALUES (:date_key, 1)
+        ON CONFLICT(date_key) DO UPDATE SET last_seq = last_seq + 1
+        RETURNING last_seq
+        """
+    )
+
+    # Bounded retries for transient DB errors (e.g. SQLITE_BUSY under heavy contention)
+    import asyncio
+    for _ in range(10):
         try:
-            await db.flush()
+            result = await db.execute(stmt, {"date_key": date_key})
+            next_seq = int(result.scalar_one())
             formatted = f"{prefix}{next_seq:04d}"
             if os.getenv("INVOICE_NUM_DEBUG"):
                 logging.getLogger("invoice_number").warning(
                     "INVOICE_NUM_DEBUG day_seq date_key=%s issued=%s", date_key, formatted
                 )
             return formatted
-        except IntegrityError:
-            await db.rollback()
-            continue
-    raise RuntimeError("Failed to allocate invoice number after retries")
+        except Exception as exc:  # Handle SQLITE_BUSY/locked transiently
+            msg = str(exc).lower()
+            if "busy" in msg or "locked" in msg:
+                await asyncio.sleep(0.005)
+                continue
+            raise
+    raise RuntimeError("Failed to allocate invoice number after retries (atomic upsert)")
 
 
 def _recompute_amounts(invoice: Invoice):
@@ -299,8 +299,8 @@ def _apply_update(invoice: Invoice, payload: Dict[str, Any]):
             invoice.is_cancelled = True
     # Manually touch updated_at to ensure the timestamp reflects mutation in tests
     # (Database onupdate may not fire in some SQLite memory/fallback modes during tests.)
-    from datetime import datetime, UTC as _UTC
-    invoice.updated_at = datetime.now(_UTC)
+    # Use already imported datetime + UTC directly (avoid re-import warnings)
+    invoice.updated_at = datetime.now(UTC)
 
 
 async def update_invoice_service(
