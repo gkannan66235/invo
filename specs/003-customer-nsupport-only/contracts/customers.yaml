@@ -1,0 +1,125 @@
+openapi: 3.0.1
+info:
+  title: Customers API
+  version: 0.1.0
+paths:
+  /api/v1/customers:
+    get:
+      summary: List customers
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search term (name/mobile)
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+    post:
+      summary: Create customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDuplicateAwareResponse'
+  /api/v1/customers/{customer_id}:
+    get:
+      summary: Get customer
+      parameters:
+        - in: path
+          name: customer_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+    patch:
+      summary: Update customer
+      parameters:
+        - in: path
+          name: customer_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerResponse'
+components:
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        mobile: { type: string }
+        email: { type: string, nullable: true }
+        address_line: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        status: { type: string }
+    CustomerCreate:
+      type: object
+      required: [name, mobile]
+      properties:
+        name: { type: string }
+        mobile: { type: string }
+        email: { type: string }
+        address_line: { type: string }
+        city: { type: string }
+    CustomerUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        mobile: { type: string }
+        email: { type: string }
+        address_line: { type: string }
+        city: { type: string }
+        status: { type: string }
+    CustomerResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: '#/components/schemas/Customer'
+    CustomerDuplicateAwareResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: '#/components/schemas/Customer'
+        duplicate_warning:
+          type: boolean
+          description: true if another active customer shares the same mobile

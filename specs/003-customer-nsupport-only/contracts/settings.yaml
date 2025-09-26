@@ -1,0 +1,14 @@
+openapi: 3.0.1
+info:
+  title: Settings API
+  version: 0.1.0
+paths:
+  /api/v1/settings:
+    get:
+      summary: Get settings
+      responses:
+        '200': { description: Settings }
+    patch:
+      summary: Update settings (admin only)
+      responses:
+        '200': { description: Updated }

@@ -1,0 +1,68 @@
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Database
+sqlalchemy==2.0.36  # upgraded for Python 3.13 compatibility
+asyncpg==0.30.0  # Updated for Python 3.13 compatibility
+psycopg[binary]==3.2.10  # Retained for runtime usage
+pg8000==1.31.2  # Pure Python driver for synchronous Alembic migrations (avoids kqueue issues)
+psycopg2-binary==2.9.9  # Added as fallback sync driver for tests (selector compatibility)
+aiosqlite==0.20.0
+alembic==1.12.1  # Database migrations
+
+# Data Validation & Serialization
+pydantic==2.10.2
+pydantic-settings==2.3.3
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+PyJWT==2.8.0
+passlib[bcrypt]==1.7.4
+# Explicit bcrypt pin: newer bcrypt versions removed __about__.__version__ and
+# trigger passlib 1.7.4 backend detection & overlong password probe failures
+# (ValueError: password cannot be longer than 72 bytes) during verify().
+# Pin to a compatible release until passlib upgraded.
+bcrypt==4.0.1
+python-multipart==0.0.6
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2  # For testing FastAPI endpoints
+
+# Code Quality
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Observability & Monitoring
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+opentelemetry-instrumentation-sqlalchemy==0.42b0
+opentelemetry-exporter-prometheus==1.12.0rc1
+opentelemetry-exporter-jaeger==1.21.0
+opentelemetry-exporter-otlp==1.21.0
+prometheus-client==0.19.0
+structlog==23.2.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+# Removed uuid-utils (Rust build fails on Python 3.13; not critical for core functionality)
+
+# Development
+pre-commit==3.6.0
+
+# Cloud & Backup
+azure-storage-blob==12.19.0
+azure-identity==1.15.0
+
+# Performance & Load Testing  
+locust==2.17.0
+
+# PDF Generation (Playwright) - optional; install separately if environment supports headless Chromium
+playwright==1.46.0
